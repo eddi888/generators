@@ -11,9 +11,12 @@ com = {
     'api_version': [2, 0, 2],
     'category': 'Bricklet',
     'device_identifier': 219,
-    'name': ('AnalogIn', 'analog_in', 'Analog In'),
+    'name': ('AnalogIn', 'analog_in', 'Analog In', 'Analog In Bricklet'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for sensing Voltages between 0 and 45V',
+    'description': {
+        'en': 'Measures DC voltage between 0V and 45V',
+        'de': 'Misst Gleichspannung zwischen 0V und 45V'
+    },
     'released': True,
     'packets': []
 }

@@ -11,9 +11,12 @@ com = {
     'api_version': [2, 0, 0],
     'category': 'Bricklet',
     'device_identifier': 238,
-    'name': ('SoundIntensity', 'sound_intensity', 'Sound Intensity'),
+    'name': ('SoundIntensity', 'sound_intensity', 'Sound Intensity', 'Sound Intensity Bricklet'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for sensing sound intensity',
+    'description': {
+        'en': 'Measures sound intensity',
+        'de': 'Misst Schallintensität'
+    },
     'released': True,
     'packets': []
 }
@@ -29,7 +32,7 @@ com['packets'].append({
 Returns the current sound intensity. The value has a range of
 0 to 4095.
 
-The value corresponds to the `upper envelop <http://en.wikipedia.org/wiki/Envelope_(waves)>`__
+The value corresponds to the `upper envelop <https://en.wikipedia.org/wiki/Envelope_(waves)>`__
 of the signal of the microphone capsule.
 
 If you want to get the intensity periodically, it is recommended to use the
@@ -41,7 +44,7 @@ callback :func:`Intensity` and set the period with
 Gibt die aktuelle Schallintensität zurück. Der Wertebereich
 ist von 0 bis 4095.
 
-Der Wert entspricht der `Hüllkurve <http://de.wikipedia.org/wiki/H%C3%BCllkurvendemodulator>`__
+Der Wert entspricht der `Hüllkurve <https://de.wikipedia.org/wiki/H%C3%BCllkurvendemodulator>`__
 des Signals der Mikrophonkapsel.
 
 Wenn die Schallintensität periodisch abgefragt werden soll, wird empfohlen

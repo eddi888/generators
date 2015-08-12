@@ -5,7 +5,7 @@
 JavaScript Bindings Generator
 Copyright (C) 2014 Ishraq Ibne Ashraf <ishraq@tinkerforge.com>
 Copyright (C) 2014 Olaf Lüke <olaf@tinkerforge.com>
-Copyright (C) 2014 Matthias Bolte <matthias@tinkerforge.com>
+Copyright (C) 2014-2015 Matthias Bolte <matthias@tinkerforge.com>
 
 generate_javascript_bindings.py: Generator for JavaScript bindings
 
@@ -38,10 +38,14 @@ class JavaScriptBindingsDevice(javascript_common.JavaScriptDevice):
         date = datetime.datetime.now().strftime("%Y-%m-%d")
         version = common.get_changelog_version(self.get_generator().get_bindings_root_directory())
         return """{0}
-var Device = require('./Device');\n
-{1}.DEVICE_IDENTIFIER = {2};\n""".format(common.gen_text_star.format(date, *version),
-                                         self.get_javascript_class_name(),
-                                         self.get_device_identifier())
+var Device = require('./Device');
+
+{1}.DEVICE_IDENTIFIER = {2};
+{1}.DEVICE_DISPLAY_NAME = '{3}';
+""".format(common.gen_text_star.format(date, *version),
+           self.get_javascript_class_name(),
+           self.get_device_identifier(),
+           self.get_long_display_name())
 
     def get_javascript_constants(self):
         callback_constants = ''
@@ -230,21 +234,21 @@ class JavaScriptBindingsGenerator(common.BindingsGenerator):
         if device.is_released():
             api = """\tthis.{0}{1} = require('./{0}{1}');
 """
-            api_format = api.format(device.get_category(), device.get_camel_case_name())
+            api_format = api.format(device.get_camel_case_category(), device.get_camel_case_name())
             self.browser_api_file.write(api_format)
 
     def add_npm_main_function(self, device):
         if device.is_released():
             npm_main = """\tthis.{0}{1} = require('./lib/{0}{1}');
 """
-            npm_main_format = npm_main.format(device.get_category(), device.get_camel_case_name())
+            npm_main_format = npm_main.format(device.get_camel_case_category(), device.get_camel_case_name())
             self.npm_main_file.write(npm_main_format)
 
     def add_source_main_function(self, device):
         if device.is_released():
             source_main = """\tthis.{0}{1} = require('./Tinkerforge/{0}{1}');
 """
-            source_main_format = source_main.format(device.get_category(), device.get_camel_case_name())
+            source_main_format = source_main.format(device.get_camel_case_category(), device.get_camel_case_name())
             self.source_main_file.write(source_main_format)
 
     def generate(self, device):
@@ -252,7 +256,7 @@ class JavaScriptBindingsGenerator(common.BindingsGenerator):
         self.add_npm_main_function(device)
         self.add_source_main_function(device)
 
-        filename = '{0}{1}.js'.format(device.get_category(), device.get_camel_case_name())
+        filename = '{0}{1}.js'.format(device.get_camel_case_category(), device.get_camel_case_name())
 
         js = open(os.path.join(self.get_bindings_root_directory(), 'bindings', filename), 'wb')
         js.write(device.get_javascript_source())
@@ -264,7 +268,7 @@ class JavaScriptBindingsGenerator(common.BindingsGenerator):
     def finish(self):
         self.browser_api_file.write("""}
 
-global.window.Tinkerforge = new Tinkerforge();""")
+global.Tinkerforge = new Tinkerforge();""")
         self.browser_api_file.close()
 
         self.npm_main_file.write("""}

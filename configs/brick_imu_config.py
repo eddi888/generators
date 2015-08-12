@@ -11,9 +11,12 @@ com = {
     'api_version': [2, 0, 1],
     'category': 'Brick',
     'device_identifier': 16,
-    'name': ('IMU', 'imu', 'IMU'),
+    'name': ('IMU', 'imu', 'IMU', 'IMU Brick'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for sensing acceleration, magnetic field and angular velocity',
+    'description': {
+        'en': 'Full fledged AHRS with 9 degrees of freedom',
+        'de': 'Voll ausgestattetes AHRS mit 9 Freiheitsgraden'
+    },
     'released': True,
     'packets': []
 }
@@ -66,8 +69,8 @@ to use the callback :func:`MagneticField` and set the period with
 """,
 'de':
 """
-Gibt das kalibrierte magnetische Feld des Magnetometers mit den X, Y und
-Z Komponenten in mG zurück (Milligauss oder Nanotesla).
+Gibt das kalibrierte magnetische Feld des Magnetometers mit den X-, Y- und
+Z-Komponenten in mG zurück (Milligauss oder Nanotesla).
 
 Wenn das magnetische Feld periodisch abgefragt werden soll, wird empfohlen
 den Callback :func:`MagneticField` zu nutzen und die Periode mit :func:`SetMagneticFieldPeriod`
@@ -96,7 +99,7 @@ to use the callback :func:`AngularVelocity` and set the period with
 """,
 'de':
 """
-Gibt die kalibrierten Winkelgeschwindigkeiten des Gyroskops für die X, Y und
+Gibt die kalibrierten Winkelgeschwindigkeiten des Gyroskops für die X-, Y- und
 Z-Achse in °/14,375s zurück. (Um den Wert in °/s zu erhalten ist es notwendig
 durch 14,375 zu teilen)
 
@@ -159,7 +162,7 @@ com['packets'].append({
 """
 Returns the current orientation (roll, pitch, yaw) of the IMU Brick as Euler
 angles in one-hundredth degree. Note that Euler angles always experience a
-`gimbal lock <http://en.wikipedia.org/wiki/Gimbal_lock>`__.
+`gimbal lock <https://en.wikipedia.org/wiki/Gimbal_lock>`__.
 
 We recommend that you use quaternions instead.
 
@@ -174,7 +177,7 @@ to use the callback :func:`Orientation` and set the period with
 """
 Gibt die aktuelle Orientierung (Roll-, Nick-, Gierwinkel) des IMU Brick in Eulerwinkeln
 (in 1/100 °) zurück. Zu beachten ist, dass Eulerwinkel immer eine 
-`kardanische Blockade <http://de.wikipedia.org/wiki/Gimbal_Lock>`__ erfahren.
+`kardanische Blockade <https://de.wikipedia.org/wiki/Gimbal_Lock>`__ erfahren.
 
 Wir empfehlen die Verwendung von Quaternionen stattdessen.
 
@@ -200,7 +203,7 @@ com['packets'].append({
 'en':
 """
 Returns the current orientation (x, y, z, w) of the IMU as 
-`quaternions <http://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation>`__.
+`quaternions <https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation>`__.
 
 You can go from quaternions to Euler angles with the following formula::
 
@@ -209,7 +212,7 @@ You can go from quaternions to Euler angles with the following formula::
  zAngle =  asin(2*x*y + 2*z*w)
 
 This process is not reversible, because of the 
-`gimbal lock <http://en.wikipedia.org/wiki/Gimbal_lock>`__.
+`gimbal lock <https://en.wikipedia.org/wiki/Gimbal_lock>`__.
 
 It is also possible to calculate independent angles. You can calculate 
 yaw, pitch and roll in a right-handed vehicle coordinate system according to DIN70000
@@ -234,7 +237,7 @@ to use the callback :func:`Quaternion` and set the period with
 'de':
 """
 Gibt die aktuelle Orientierung (x, y, z, w) des IMU Brick als
-`Quaterinonen <http://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation>`__ zurück.
+`Quaterinonen <https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation>`__ zurück.
 
 Die Umrechnung von Quaternionen in Eulerwinkel ist mit folgender Formel möglich::
 
@@ -251,7 +254,7 @@ wie folgt berechnet werden::
  roll  = -atan2(2*y*z + 2*w*x, -w*w + x*x + y*y - z*z))
  
 Diese Umrechnung ist irreversibel aufgrund der 
-`kardanischen Blockade <http://de.wikipedia.org/wiki/Gimbal_lock>`__.
+`kardanischen Blockade <https://de.wikipedia.org/wiki/Gimbal_lock>`__.
 
 Die Umrechnung von Quaternionen in eine OpenGL Transformationsmatrix ist
 mit folgender Formel möglich::

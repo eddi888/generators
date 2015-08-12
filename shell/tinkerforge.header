@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (C) 2013-2014 Matthias Bolte <matthias@tinkerforge.com>
+# Copyright (C) 2013-2015 Matthias Bolte <matthias@tinkerforge.com>
 #
 # Version <<VERSION>>
 #
@@ -29,6 +29,7 @@ ERROR_SOCKET_ERROR = 23
 ERROR_OTHER_EXCEPTION = 24
 ERROR_INVALID_PLACEHOLDER = 25
 ERROR_AUTHENTICATION_ERROR = 26
+ERROR_OUTPUT_NOT_ESCAPABLE_ERROR = 27
 IPCONNECTION_ERROR_OFFSET = 200
 
 listen_mode = False
@@ -62,6 +63,9 @@ class Context:
 	secret = None
 	item_separator = None
 	group_separator = None
+	array_ellipsis = None
+	no_escaped_input = None
+	no_escaped_output = None
 	no_symbolic_input = None
 	no_symbolic_output = None
 	timeout = None
@@ -79,6 +83,9 @@ class Context:
 		ctx.secret = self.secret
 		ctx.item_separator = self.item_separator
 		ctx.group_separator = self.group_separator
+		ctx.array_ellipsis = self.array_ellipsis
+		ctx.no_escaped_input = self.no_escaped_input
+		ctx.no_escaped_output = self.no_escaped_output
 		ctx.no_symbolic_input = self.no_symbolic_input
 		ctx.no_symbolic_output = self.no_symbolic_output
 		ctx.timeout = self.timeout
@@ -192,7 +199,7 @@ def authenticate(ipcon, secret, message):
 
 def connect_ipcon_and_call(ctx, function, timeout=None):
 	def function_wrapper(ipcon):
-		if timeout is not None:
+		if timeout != None:
 			ipcon.set_timeout(timeout)
 
 		ipcon.connect(ctx.host, ctx.port)
@@ -213,7 +220,13 @@ def connect_ipcon_and_call(ctx, function, timeout=None):
 	handle_ipcon_exceptions(IPConnection(), function_wrapper)
 
 def call_generic(ctx, name, functions, argv):
-	parser = Parser(ctx, 'call ' + name)
+	if listen_mode:
+		prefix = ''
+	else:
+		prefix = 'tinkerforge '
+
+	# FIXME: add description
+	parser = Parser(ctx, 'call ' + name, epilog="try '{0}call {1} dummy <function> --help' for function specific help.".format(prefix, name))
 	function_choices = sorted(functions.keys())
 
 	class ListFunctionsAction(argparse.Action):
@@ -222,7 +235,7 @@ def call_generic(ctx, name, functions, argv):
 			raise ParserExit()
 
 	parser.add_argument('--list-functions', action=ListFunctionsAction, nargs=0, help='show functions of {0} and exit'.format(name))
-	parser.add_argument('uid', type=check_base58, help='uid of a ' + name, metavar='<uid>')
+	parser.add_argument('uid', type=convert_base58, help='uid of a ' + name, metavar='<uid>')
 	parser.add_argument('function', choices=function_choices, help='{' + ', '.join(function_choices) + '}', metavar='<function>')
 	parser.add_argument('args', nargs=argparse.REMAINDER, help='function specific arguments', metavar='<args>')
 
@@ -233,7 +246,13 @@ def call_generic(ctx, name, functions, argv):
 	functions[args.function](ctx, args.args)
 
 def dispatch_generic(ctx, name, callbacks, argv):
-	parser = Parser(ctx, 'dispatch ' + name)
+	if listen_mode:
+		prefix = ''
+	else:
+		prefix = 'tinkerforge '
+
+	# FIXME: add description
+	parser = Parser(ctx, 'dispatch ' + name, epilog="try '{0}dispatch {1} dummy <callback> --help' for callback specific help.".format(prefix, name))
 	callback_choices = sorted(callbacks.keys())
 
 	class ListCallbacksAction(argparse.Action):
@@ -242,7 +261,7 @@ def dispatch_generic(ctx, name, callbacks, argv):
 			raise ParserExit()
 
 	parser.add_argument('--list-callbacks', action=ListCallbacksAction, nargs=0, help='show callbacks of {0} and exit'.format(name))
-	parser.add_argument('uid', type=check_base58, help='uid of a ' + name, metavar='<uid>')
+	parser.add_argument('uid', type=convert_base58, help='uid of a ' + name, metavar='<uid>')
 	parser.add_argument('callback', choices=callback_choices, help='{' + ', '.join(callback_choices) + '}', metavar='<callback>')
 	parser.add_argument('args', nargs=argparse.REMAINDER, help='callback specific arguments', metavar='<args>')
 
@@ -257,7 +276,7 @@ def device_send_request(ctx, device_class, function_id, request_data, format_in,
 	if dry_run:
 		return
 
-	if command is not None:
+	if command != None:
 		def handle_response(values):
 			execute_response(ctx, command, names, values)
 	else:
@@ -272,11 +291,11 @@ def device_send_request(ctx, device_class, function_id, request_data, format_in,
 
 		response = ipcon.send_request(device, function_id, request_data, format_in, format_out)
 
-		if response is not None:
+		if response != None:
 			if len(names) == 1:
 				response = (response,)
 
-			response = format_symbolic_output(ctx, response, symbols)
+			response = format_escaped_output(ctx, format_symbolic_output(ctx, response, symbols))
 
 			handle_response(response)
 		elif listen_mode:
@@ -284,12 +303,14 @@ def device_send_request(ctx, device_class, function_id, request_data, format_in,
 
 	connect_ipcon_and_call(ctx, function, ctx.timeout / 1000.0)
 
-def device_callback(ctx, device_class, function_id, command, names):
+def device_callback(ctx, device_class, function_id, command, names, symbols):
 	if dry_run:
 		return
 
-	if command is not None:
+	if command != None:
 		def callback(*values):
+			values = format_escaped_output(ctx, format_symbolic_output(ctx, values, symbols))
+
 			execute_response(ctx, command, names, values)
 	else:
 		is_first_callback = [True]
@@ -300,6 +321,8 @@ def device_callback(ctx, device_class, function_id, command, names):
 					is_first_callback[0] = False
 				else:
 					ctx.output(ctx.group_separator)
+
+			values = format_escaped_output(ctx, format_symbolic_output(ctx, values, symbols))
 
 			output_response(ctx, names, values)
 
@@ -319,7 +342,7 @@ def device_callback(ctx, device_class, function_id, command, names):
 			while not exit_flag[0] and not ctx.abort:
 				time.sleep(0.1)
 
-				if ctx.async_exception is not None:
+				if ctx.async_exception != None:
 					raise ctx.async_exception
 		elif ctx.duration < 0:
 			device.registered_callbacks[function_id] = callback
@@ -327,7 +350,7 @@ def device_callback(ctx, device_class, function_id, command, names):
 			while not ctx.abort:
 				time.sleep(1)
 
-				if ctx.async_exception is not None:
+				if ctx.async_exception != None:
 					raise ctx.async_exception
 		else:
 			device.registered_callbacks[function_id] = callback
@@ -339,7 +362,7 @@ def device_callback(ctx, device_class, function_id, command, names):
 			# FIXME: only checking for an exception after the complete sleep
 			#        is not good, sleep in shorter steps here to check for
 			#        exception more often
-			if ctx.async_exception is not None:
+			if ctx.async_exception != None:
 				raise ctx.async_exception
 
 	connect_ipcon_and_call(ctx, function)
@@ -360,18 +383,50 @@ def format_symbolic_output(ctx, values, symbols):
 
 	translated_values = []
 
-	for vs in zip(values, symbols):
-		if vs[1] is not None:
+	for value, symbol in zip(values, symbols):
+		if symbol != None:
 			try:
-				translated_values.append(vs[1][vs[0]])
+				translated_values.append(symbol[value])
 			except KeyError:
-				translated_values.append(vs[0])
+				translated_values.append(value)
 		else:
-			translated_values.append(vs[0])
+			translated_values.append(value)
 
 	return tuple(translated_values)
 
-def check_base58(string):
+def format_escaped_output(ctx, values):
+	if ctx.no_escaped_output:
+		return values
+
+	translated_values = []
+
+	for value in values:
+		if type(value) == tuple:
+			translated_items = []
+
+			for item in value:
+				if type(item) == str:
+					try:
+						translated_items.append(item.encode('string-escape'))
+					except ValueError:
+						message = 'output not escapable: %r' % item
+						raise FatalError(message, ERROR_OUTPUT_NOT_ESCAPABLE_ERROR)
+				else:
+					translated_items.append(item)
+
+			translated_values.append(tuple(translated_items))
+		elif type(value) == str:
+			try:
+				translated_values.append(value.encode('string-escape'))
+			except ValueError:
+				message = 'output not escapable: %r' % value
+				raise FatalError(message, ERROR_OUTPUT_NOT_ESCAPABLE_ERROR)
+		else:
+			translated_values.append(value)
+
+	return tuple(translated_values)
+
+def convert_base58(string):
 	try:
 		base58decode(string)
 	except:
@@ -380,16 +435,26 @@ def check_base58(string):
 
 	return string
 
-check_base58.__name__ = 'base58'
+convert_base58.__name__ = 'base58'
 
-def check_char(string):
-	if len(string) != 1:
-		msg = 'invalid char value: %r' % string
-		raise argparse.ArgumentTypeError(msg)
+def create_char_converter(ctx):
+	def convert_char(string):
+		if not ctx.no_escaped_input:
+			try:
+				string = string.decode('string-escape')
+			except ValueError:
+				msg = 'invalid escape sequence: %r' % string
+				raise argparse.ArgumentTypeError(msg)
 
-	return string
+		if len(string) != 1:
+			msg = 'invalid char value: %r' % string
+			raise argparse.ArgumentTypeError(msg)
 
-check_char.__name__ = 'char'
+		return string
+
+	convert_char.__name__ = 'char'
+
+	return convert_char
 
 def convert_int(string):
 	try:
@@ -413,8 +478,15 @@ def convert_bool(string):
 
 convert_bool.__name__ = 'bool'
 
-def create_string_checker(type, length):
-	def check_string(string):
+def create_string_converter(ctx, type, length):
+	def convert_string(string):
+		if not ctx.no_escaped_input:
+			try:
+				string = string.decode('string-escape')
+			except ValueError:
+				msg = 'invalid escape sequence: %r' % string
+				raise argparse.ArgumentTypeError(msg)
+
 		try:
 			value = type(string)
 		except (ValueError, TypeError):
@@ -428,9 +500,9 @@ def create_string_checker(type, length):
 
 		return value
 
-	check_string.__name__ = 'string'
+	convert_string.__name__ = 'string'
 
-	return check_string
+	return convert_string
 
 def create_symbol_converter(ctx, type, symbols, strict=False):
 	def convert_symbol(string):
@@ -459,11 +531,21 @@ def create_symbol_converter(ctx, type, symbols, strict=False):
 	return convert_symbol
 
 # length_is_fixed = False means length is maximum length
-def create_array_converter(ctx, type, length, length_is_fixed=True):
+def create_array_converter(ctx, type, default_value, length, length_is_fixed=True):
 	def convert_array(string):
+		items = string.split(ctx.item_separator)
+
+		if len(ctx.array_ellipsis) > 0 and len(items) > 0 and items[-1] == ctx.array_ellipsis:
+			if default_value == None:
+				name = getattr(type, '__name__', repr(type))
+				msg = 'array ellipsis not supported for %s value: %r' % (get_array_type_name(ctx, name, length, length_is_fixed), string)
+				raise argparse.ArgumentTypeError(msg)
+
+			items = items[:-1] + [default_value]*(length - len(items) + 1)
+
 		array = []
 
-		for item in string.split(ctx.item_separator):
+		for item in items:
 			try:
 				value = type(item)
 			except (ValueError, TypeError, argparse.ArgumentTypeError):
@@ -507,9 +589,11 @@ def execute_response(ctx, command, names, values):
 	try:
 		formatted_command = command.format(**formatted_values)
 	except KeyError as e:
-		raise FatalError('invalid placeholder %s in format: %s' % (str(e).lower(), command), ERROR_INVALID_PLACEHOLDER)
+		message = 'invalid placeholder %s in format: %s' % (str(e).lower(), command)
+		raise FatalError(message, ERROR_INVALID_PLACEHOLDER)
 	except Exception as e:
-		raise FatalError('%s: %s' % (str(e).lower(), command), ERROR_OTHER_EXCEPTION)
+		message = '%s: %s' % (str(e).lower(), command)
+		raise FatalError(message, ERROR_OTHER_EXCEPTION)
 
 	try:
 		if listen_mode:
@@ -522,7 +606,8 @@ def execute_response(ctx, command, names, values):
 		else:
 			subprocess.call(formatted_command, shell=True)
 	except Exception as e:
-		raise FatalError('%s: %s' % (str(e).lower(), formatted_command), ERROR_OTHER_EXCEPTION)
+		message = '%s: %s' % (str(e).lower(), formatted_command)
+		raise FatalError(message, ERROR_OTHER_EXCEPTION)
 
 def output_response(ctx, names, values):
 	lines = []

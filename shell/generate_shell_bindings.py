@@ -3,7 +3,7 @@
 
 """
 Shell Bindings Generator
-Copyright (C) 2013 Matthias Bolte <matthias@tinkerforge.com>
+Copyright (C) 2013-2015 Matthias Bolte <matthias@tinkerforge.com>
 
 generate_shell_bindings.py: Generator for shell bindings
 
@@ -96,7 +96,7 @@ def call_{0}_{1}(ctx, argv):
 """
 
         return header.format(self.get_underscore_name(),
-                             self.get_category().lower(),
+                             self.get_underscore_category(),
                              self.get_shell_device_name())
 
     def get_shell_call_functions(self):
@@ -150,7 +150,7 @@ def call_{0}_{1}(ctx, argv):
                 for element in packet.get_elements('out'):
                     output_names.append("'{0}'".format(element.get_dash_name()))
 
-                    if element.get_constant_group() is not None:
+                    if element.get_constant_group() != None:
                         symbols = {}
 
                         for constant_item in element.get_constant_group().get_items():
@@ -177,7 +177,7 @@ def call_{0}_{1}(ctx, argv):
                                              packet.get_shell_format_list('in'),
                                              packet.get_shell_format_list('out'),
                                              self.get_camel_case_name(),
-                                             self.get_category(),
+                                             self.get_camel_case_category(),
                                              ', '.join(output_names),
                                              ', '.join(output_symbols))
                 else:
@@ -192,7 +192,7 @@ def call_{0}_{1}(ctx, argv):
                                              packet.get_shell_format_list('in'),
                                              packet.get_shell_format_list('out'),
                                              self.get_camel_case_name(),
-                                             self.get_category())
+                                             self.get_camel_case_category())
 
             functions.append(function)
 
@@ -217,7 +217,7 @@ def dispatch_{0}_{1}(ctx, argv):
 """
 
         return header.format(self.get_underscore_name(),
-                             self.get_category().lower(),
+                             self.get_underscore_category(),
                              self.get_shell_device_name())
 
     def get_shell_dispatch_functions(self):
@@ -226,17 +226,28 @@ def dispatch_{0}_{1}(ctx, argv):
 
 \t\targs = parser.parse_args(argv)
 
-\t\tdevice_callback(ctx, {2}{3}, {4}, args.execute, [{5}])
+\t\tdevice_callback(ctx, {2}{3}, {4}, args.execute, [{5}], [{6}])
 """
 
         functions = []
         entries = []
 
         for packet in self.get_packets('callback'):
-            output = []
+            output_names = []
+            output_symbols = []
 
             for element in packet.get_elements('out'):
-                output.append("'{0}'".format(element.get_dash_name()))
+                output_names.append("'{0}'".format(element.get_dash_name()))
+
+                if element.get_constant_group() != None:
+                    symbols = {}
+
+                    for constant_item in element.get_constant_group().get_items():
+                        symbols[constant_item.get_value()] = constant_item.get_dash_name()
+
+                    output_symbols.append(str(symbols))
+                else:
+                    output_symbols.append('None')
 
             underscore_name = packet.get_underscore_name()
             dash_name = packet.get_dash_name()
@@ -244,9 +255,10 @@ def dispatch_{0}_{1}(ctx, argv):
             function = func.format(underscore_name,
                                    dash_name,
                                    self.get_camel_case_name(),
-                                   self.get_category(),
+                                   self.get_camel_case_category(),
                                    packet.get_function_id(),
-                                   ', '.join(output))
+                                   ', '.join(output_names),
+                                   ', '.join(output_symbols))
 
             entries.append("'{0}': {1}".format(dash_name,
                                                underscore_name))
@@ -306,11 +318,11 @@ class ShellBindingsGenerator(common.BindingsGenerator):
 
         self.call_devices.append("'{0}': call_{1}_{2}".format(device.get_shell_device_name(),
                                                               device.get_underscore_name(),
-                                                              device.get_category().lower()))
+                                                              device.get_underscore_category()))
 
         self.dispatch_devices.append("'{0}': dispatch_{1}_{2}".format(device.get_shell_device_name(),
                                                                       device.get_underscore_name(),
-                                                                      device.get_category().lower()))
+                                                                      device.get_underscore_category()))
 
         self.device_identifier_symbols.append("{0}: '{1}'".format(device.get_device_identifier(),
                                                                   device.get_shell_device_name()))

@@ -3,7 +3,7 @@
 
 """
 Java Documentation Generator
-Copyright (C) 2012-2014 Matthias Bolte <matthias@tinkerforge.com>
+Copyright (C) 2012-2015 Matthias Bolte <matthias@tinkerforge.com>
 Copyright (C) 2011-2013 Olaf Lüke <olaf@tinkerforge.com>
 
 generate_java_doc.py: Generator for Java documentation
@@ -129,28 +129,28 @@ class JavaDocDevice(java_common.JavaDevice):
     def get_java_api(self):
         create_str = {
         'en': """
-.. java:function:: class {3}{1}(String uid, IPConnection ipcon)
+.. java:function:: class {1}(String uid, IPConnection ipcon)
 
  Creates an object with the unique device ID ``uid``:
 
  .. code-block:: java
 
-  {3}{1} {0} = new {3}{1}("YOUR_DEVICE_UID", ipcon);
+  {1} {2} = new {1}("YOUR_DEVICE_UID", ipcon);
 
  This object can then be used after the IP Connection is connected
- (see examples :ref:`above <{4}_{2}_java_examples>`).
+ (see examples :ref:`above <{0}_java_examples>`).
 """,
         'de': """
-.. java:function:: class {3}{1}(String uid, IPConnection ipcon)
+.. java:function:: class {1}(String uid, IPConnection ipcon)
 
  Erzeugt ein Objekt mit der eindeutigen Geräte ID ``uid``:
 
  .. code-block:: java
 
-  {3}{1} {0} = new {3}{1}("YOUR_DEVICE_UID", ipcon);
+  {1} {2} = new {1}("YOUR_DEVICE_UID", ipcon);
 
  Dieses Objekt kann benutzt werden, nachdem die IP Connection verbunden ist
- (siehe Beispiele :ref:`oben <{4}_{2}_java_examples>`).
+ (siehe Beispiele :ref:`oben <{0}_java_examples>`).
 """
         }
 
@@ -171,7 +171,7 @@ Konfigurationsfunktionen für Listener
 
         c_str = {
         'en': """
-.. _{1}_{2}_java_callbacks:
+.. _{0}_java_callbacks:
 
 Listeners
 ^^^^^^^^^
@@ -184,7 +184,7 @@ The parameter is a listener class object, for example:
 
 .. code-block:: java
 
-    device.addExampleListener(new {3}{4}.ExampleListener() {{
+    device.addExampleListener(new {1}.ExampleListener() {{
         public void property(int value) {{
             System.out.println("Value: " + value);
         }}
@@ -199,11 +199,10 @@ to remove them with the corresponding "remove*Listener" function.
  compared to using getters. It will use less USB bandwidth and the latency
  will be a lot better, since there is no round trip time.
 
-
-{0}
+{2}
 """,
         'de': """
-.. _{1}_{2}_java_callbacks:
+.. _{0}_java_callbacks:
 
 Listener
 ^^^^^^^^
@@ -216,7 +215,7 @@ Der Parameter ist ein Listener Klassen Objekt, z.B.:
 
 .. code-block:: java
 
-    device.addExampleListener(new {3}{4}.ExampleListener() {{
+    device.addExampleListener(new {1}.ExampleListener() {{
         public void property(int value) {{
             System.out.println("Value: " + value);
         }}
@@ -233,13 +232,14 @@ Listener hinzuzufügen und auch mit einem korrespondierenden
  Es wird weniger USB-Bandbreite benutzt und die Latenz ist
  erheblich geringer, da es keine Paketumlaufzeit gibt.
 
-{0}
+{2}
 """
         }
 
         api = {
         'en': """
-{0}
+.. _{0}_java_api:
+
 API
 ---
 
@@ -269,7 +269,8 @@ All methods listed below are thread-safe.
 {2}
 """,
         'de': """
-{0}
+.. _{0}_java_api:
+
 API
 ---
 
@@ -302,43 +303,49 @@ Alle folgend aufgelisteten Methoden sind Thread-sicher.
         }
 
         const_str = {
-        'en' : """
-.. _{5}_{6}_java_constants:
+        'en': """
+.. _{0}_java_constants:
 
 Constants
 ^^^^^^^^^
 
-.. java:member:: public static final int {1}{0}.DEVICE_IDENTIFIER
+.. java:member:: public static final int {1}.DEVICE_IDENTIFIER
 
- This constant is used to identify a {3} {4}.
+ This constant is used to identify a {3}.
 
- The :java:func:`getIdentity() <{4}{3}::getIdentity>` function and the
+ The :java:func:`getIdentity() <{1}::getIdentity>` function and the
  :java:func:`EnumerateListener <IPConnection.EnumerateListener>`
  listener of the IP Connection have a ``deviceIdentifier`` parameter to specify
  the Brick's or Bricklet's type.
+
+.. java:member:: public static final String {1}.DEVICE_DISPLAY_NAME
+
+ This constant represents the human readable name of a {3}.
 """,
-        'de' : """
-.. _{5}_{6}_java_constants:
+        'de': """
+.. _{0}_java_constants:
 
 Konstanten
 ^^^^^^^^^^
 
-.. java:member:: public static final int {1}{0}.DEVICE_IDENTIFIER
+.. java:member:: public static final int {1}.DEVICE_IDENTIFIER
 
- Diese Konstante wird verwendet um {2} {3} {4} zu identifizieren.
+ Diese Konstante wird verwendet um {2} {3} zu identifizieren.
 
- Die :java:func:`getIdentity() <{4}{3}::getIdentity>` Funktion und der
+ Die :java:func:`getIdentity() <{1}::getIdentity>` Funktion und der
  :java:func:`EnumerateListener <IPConnection.EnumerateListener>`
  Listener der IP Connection haben ein ``deviceIdentifier`` Parameter um den Typ
  des Bricks oder Bricklets anzugeben.
+
+.. java:member:: public static final String {1}.DEVICE_DISPLAY_NAME
+
+ Diese Konstante stellt den Anzeigenamen eines {3} dar.
 """
         }
 
-        cre = common.select_lang(create_str).format(self.get_headless_camel_case_name(),
-                                                    self.get_camel_case_name(),
-                                                    self.get_category().lower(),
-                                                    self.get_category(),
-                                                    self.get_underscore_name())
+        cre = common.select_lang(create_str).format(self.get_doc_rst_ref_name(),
+                                                    self.get_java_class_name(),
+                                                    self.get_headless_camel_case_name())
 
         bf = self.get_java_methods('bf')
         af = self.get_java_methods('af')
@@ -352,26 +359,21 @@ Konstanten
         if ccf:
             api_str += common.select_lang(ccf_str).format(ccf)
         if c:
-            api_str += common.select_lang(c_str).format(c, self.get_underscore_name(),
-                                                        self.get_category().lower(),
-                                                        self.get_category(),
-                                                        self.get_camel_case_name())
+            api_str += common.select_lang(c_str).format(self.get_doc_rst_ref_name(),
+                                                        self.get_java_class_name(),
+                                                        c)
 
         article = 'ein'
-        if self.get_category() == 'Brick':
+        if self.get_camel_case_category() == 'Brick':
             article = 'einen'
-        api_str += common.select_lang(const_str).format(self.get_camel_case_name(),
-                                                        self.get_category(),
+        api_str += common.select_lang(const_str).format(self.get_doc_rst_ref_name(),
+                                                        self.get_java_class_name(),
                                                         article,
-                                                        self.get_camel_case_name(),
-                                                        self.get_category(),
-                                                        self.get_underscore_name(),
-                                                        self.get_category().lower())
+                                                        self.get_long_display_name())
 
-        ref = '.. _{0}_{1}_java_api:\n'.format(self.get_underscore_name(),
-                                               self.get_category().lower())
-
-        return common.select_lang(api).format(ref, self.replace_java_function_links(self.get_api_doc()), api_str)
+        return common.select_lang(api).format(self.get_doc_rst_ref_name(),
+                                              self.replace_java_function_links(self.get_api_doc()),
+                                              api_str)
 
     def get_java_doc(self):
         doc  = common.make_rst_header(self)

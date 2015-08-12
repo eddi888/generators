@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2013 Matthias Bolte <matthias@tinkerforge.com>
+ * Copyright (C) 2012-2015 Matthias Bolte <matthias@tinkerforge.com>
  * Copyright (C) 2011-2012 Olaf Lüke <olaf@tinkerforge.com>
  *
  * Redistribution and use in source and binary forms of this file,
@@ -167,7 +167,7 @@ namespace Tinkerforge
 			}
 		}
 
-		// NOTE: assumes that socketLock is locked
+		// NOTE: assumes that socket is null and socketLock is locked
 		private void ConnectUnlocked(bool isAutoReconnect)
 		{
 			if (callback == null)
@@ -182,22 +182,48 @@ namespace Tinkerforge
 				callback.thread.Start();
 			}
 
+			Socket tmp = null;
+
 			try
 			{
-				socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-				socket.NoDelay = true;
-				ConnectSocket(host, port);
+				tmp = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+				tmp.NoDelay = true;
+
+#if WINDOWS_PHONE
+				IPAddress ipAddress = IPAddress.Parse(host);
+				var endpoint = new IPEndPoint(ipAddress, port);
+
+				SocketAsyncEventArgs args = new SocketAsyncEventArgs();
+				args.RemoteEndPoint = endpoint;
+
+				AutoResetEvent connectedEvent = new AutoResetEvent(false);
+				args.Completed += new EventHandler<SocketAsyncEventArgs>((o, e) => { connectedEvent.Set(); });
+				bool connectPending = tmp.ConnectAsync(args);
+
+				if (connectPending)
+				{
+					connectedEvent.WaitOne();
+				}
+
+				if (!connectPending || args.SocketError != SocketError.Success)
+				{
+					throw new IOException(string.Format("Could not connect: {0}", args.SocketError));
+				}
+#else
+				tmp.Connect(host, port);
+#endif
 			}
 			catch (Exception)
 			{
-				if (socket != null)
+				if (tmp != null)
 				{
-					socket.Close();
-					socket = null;
+					tmp.Close();
 				}
+
 				throw;
 			}
 
+			socket = tmp;
 			socketStream = new NetworkStream(socket);
 			++socketID;
 
@@ -271,7 +297,7 @@ namespace Tinkerforge
 			}
 		}
 
-		// NOTE: assumes that socketLock is locked
+		// NOTE: assumes that socket is not null and socketLock is locked
 		private void DisconnectUnlocked()
 		{
 			// destroy disconnect probe thread
@@ -499,32 +525,6 @@ namespace Tinkerforge
 				nextSequenceNumber = currentSequenceNumber % 15;
 			}
 			return currentSequenceNumber;
-		}
-
-		private void ConnectSocket(string host, int port)
-		{
-#if WINDOWS_PHONE
-			IPAddress ipAddress = IPAddress.Parse(host);
-			var endpoint = new IPEndPoint(ipAddress, port);
-
-			SocketAsyncEventArgs args = new SocketAsyncEventArgs();
-			args.RemoteEndPoint = endpoint;
-
-			AutoResetEvent connectedEvent = new AutoResetEvent(false);
-			args.Completed += new EventHandler<SocketAsyncEventArgs>((o, e) => { connectedEvent.Set(); });
-			bool connectPending = socket.ConnectAsync(args);
-
-			if (connectPending)
-			{
-				connectedEvent.WaitOne();
-			}
-			if (!connectPending || args.SocketError != SocketError.Success)
-			{
-				throw new IOException(string.Format("Could not connect: {0}", args.SocketError));
-			}
-#else
-			socket.Connect(host, port);
-#endif
 		}
 
 		private void ReceiveLoop(long localSocketID)
@@ -943,6 +943,9 @@ namespace Tinkerforge
 		}
 	}
 
+	/// <summary>
+	///  Base class for all Tinkerforge exceptions.
+	/// </summary>
 	public class TinkerforgeException : Exception
 	{
 		public TinkerforgeException()
@@ -955,6 +958,9 @@ namespace Tinkerforge
 		}
 	}
 
+	/// <summary>
+	///  Used to report timeout errors.
+	/// </summary>
 	public class TimeoutException : TinkerforgeException
 	{
 		public TimeoutException(string message)
@@ -963,6 +969,10 @@ namespace Tinkerforge
 		}
 	}
 
+	/// <summary>
+	///  Used to report if <see cref="Tinkerforge.IPConnection.Connect"/> is
+	///  called on an already connected IPConnection.
+	/// </summary>
 	public class AlreadyConnectedException : TinkerforgeException
 	{
 		public AlreadyConnectedException(string message)
@@ -971,6 +981,10 @@ namespace Tinkerforge
 		}
 	}
 
+	/// <summary>
+	///  Used to report if a method is called on an unconnected IPConnection
+	///  that requires a connected IPConnection.
+	/// </summary>
 	public class NotConnectedException : TinkerforgeException
 	{
 		public NotConnectedException()
@@ -1019,6 +1033,9 @@ namespace Tinkerforge
 		}
 	}
 
+	/// <summary>
+	///  Base class for all Tinkerforge Brick and Bricklet classes.
+	/// </summary>
 	public abstract class Device
 	{
 		internal short[] apiVersion = new short[3];
@@ -1051,7 +1068,7 @@ namespace Tinkerforge
 		internal delegate void CallbackWrapper(byte[] data);
 
 		/// <summary>
-		///  Creates the device objectwith the unique device ID *uid* and adds
+		///  Creates the device object with the unique device ID *uid* and adds
 		///  it to the IPConnection *ipcon*.
 		/// </summary>
 		public Device(string uid, IPConnection ipcon)
@@ -1087,7 +1104,7 @@ namespace Tinkerforge
 		///  For getter functions this is enabled by default and cannot be
 		///  disabled, because those functions will always send a response.
 		///  For callback configuration functions it is enabled by default
-		///  too, but can be disabled via the setResponseExpected function.
+		///  too, but can be disabled via the SetResponseExpected function.
 		///  For setter functions it is disabled by default and can be enabled.
 		///
 		///  Enabling the response expected flag for a setter function allows
@@ -1296,7 +1313,8 @@ namespace Tinkerforge
 			SendRequest(request);
 		}
 
-		public override void GetIdentity(out string uid, out string connectedUid, out char position, out byte[] hardwareVersion, out byte[] firmwareVersion, out int deviceIdentifier)
+		public override void GetIdentity(out string uid, out string connectedUid, out char position,
+		                                 out byte[] hardwareVersion, out byte[] firmwareVersion, out int deviceIdentifier)
 		{
 			uid = "";
 			connectedUid = "";
@@ -1834,7 +1852,7 @@ namespace Tinkerforge
 
 		public override void Flush()
 		{
-			//stream is always flushed
+			// stream is always flushed
 		}
 
 		public NetworkStream(Socket sock)
@@ -1861,7 +1879,7 @@ namespace Tinkerforge
 			}
 			else if (e.SocketError != SocketError.Success)
 			{
-				//TODO: error handling
+				// TODO: error handling
 			}
 
 			switch (e.LastOperation)
@@ -1869,7 +1887,7 @@ namespace Tinkerforge
 				case SocketAsyncOperation.Receive:
 					if (e.BytesTransferred == 0)
 					{
-						//TODO: error handling
+						// TODO: error handling
 						break;
 					}
 					byte[] receiveBuffer = new byte[e.BytesTransferred];
@@ -1877,14 +1895,14 @@ namespace Tinkerforge
 					ReceiveQueue.Enqueue(receiveBuffer);
 					if (!socket.ReceiveAsync(e))
 					{
-						//TODO: error handling
+						// TODO: error handling
 					}
 					break;
 				case SocketAsyncOperation.Send:
 					WriteCompleteEvent.Set();
 					break;
 				default:
-					break; //TODO: error handling
+					break; // TODO: error handling
 			}
 		}
 

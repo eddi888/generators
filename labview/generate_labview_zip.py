@@ -54,10 +54,10 @@ class LabVIEWZipGenerator(common.Generator):
 
         # Copy device examples
         tmp_examples_device_dir = os.path.join(self.tmp_examples_dir,
-                                               device.get_category(),
+                                               device.get_camel_case_category(),
                                                device.get_camel_case_name())
         tmp_examples_device_10_dir = os.path.join(self.tmp_examples_dir,
-                                                  device.get_category(),
+                                                  device.get_camel_case_category(),
                                                   device.get_camel_case_name(),
                                                   '10.0')
 
@@ -101,15 +101,19 @@ class LabVIEWZipGenerator(common.Generator):
                                     '<<VERSION>>': '.'.join(version)})
 
         # Make dll
-        with common.ChangedDirectory(self.tmp_dir):
-            args = ['/usr/bin/gmcs',
-                    '/optimize',
-                    '/target:library',
-                    '/out:' + os.path.join(self.tmp_dir, 'Tinkerforge.dll'),
-                    os.path.join(self.tmp_source_tinkerforge_dir, '*.cs')]
+        for sdk in [2, 4]:
+            os.makedirs(os.path.join(self.tmp_dir, 'net{0}0'.format(sdk)))
 
-            if subprocess.call(args) != 0:
-                raise Exception("Command '{0}' failed".format(' '.join(args)))
+            with common.ChangedDirectory(self.tmp_dir):
+                args = ['/usr/bin/gmcs',
+                        '/optimize',
+                        '/target:library',
+                        '/sdk:{0}'.format(sdk),
+                        '/out:' + os.path.join(self.tmp_dir, 'net{0}0'.format(sdk), 'Tinkerforge.dll'),
+                        os.path.join(self.tmp_source_tinkerforge_dir, '*.cs')]
+
+                if subprocess.call(args) != 0:
+                    raise Exception("Command '{0}' failed".format(' '.join(args)))
 
         # Make zip
         common.make_zip(self.get_bindings_name(), self.tmp_dir, root_dir, version)

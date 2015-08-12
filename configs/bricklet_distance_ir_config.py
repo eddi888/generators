@@ -4,16 +4,19 @@
 # with or without modification, are permitted. See the Creative
 # Commons Zero (CC0 1.0) License for more details.
 
-# Linear Poti Bricklet communication config
+# Distance IR Bricklet communication config
 
 com = {
     'author': 'Olaf Lüke <olaf@tinkerforge.com>',
     'api_version': [2, 0, 0],
     'category': 'Bricklet',
     'device_identifier': 25,
-    'name': ('DistanceIR', 'distance_ir', 'Distance IR'),
+    'name': ('DistanceIR', 'distance_ir', 'Distance IR', 'Distance IR Bricklet'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for sensing distance via infrared',
+    'description': {
+        'en': 'Measures distance up to 150cm with infrared light',
+        'de': 'Misst Entfernung bis zu 150cm mit Infrarot-Licht'
+    },
     'released': True,
     'packets': []
 }

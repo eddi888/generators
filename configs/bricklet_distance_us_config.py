@@ -11,9 +11,12 @@ com = {
     'api_version': [2, 0, 0],
     'category': 'Bricklet',
     'device_identifier': 229,
-    'name': ('DistanceUS', 'distance_us', 'Distance US'),
+    'name': ('DistanceUS', 'distance_us', 'Distance US', 'Distance US Bricklet'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for sensing distance via ultrasound',
+    'description': {
+        'en': 'Measures distance between 2cm and 400cm with ultrasound',
+        'de': 'Misst Entfernung zwischen 2cm und 400cm mit Ultraschall'
+    },
     'released': True,
     'packets': []
 }
@@ -292,7 +295,7 @@ com['packets'].append({
 'doc': ['af', {
 'en':
 """
-Sets the length of a `moving averaging <http://en.wikipedia.org/wiki/Moving_average>`__ 
+Sets the length of a `moving averaging <https://en.wikipedia.org/wiki/Moving_average>`__
 for the distance value.
 
 Setting the length to 0 will turn the averaging completely off. With less
@@ -304,7 +307,8 @@ The default value is 20.
 """,
 'de':
 """
-Setzt die Länge eines gleitenden Mittelwerts für den Entfernungswert.
+Setzt die Länge eines `gleitenden Mittelwerts <https://de.wikipedia.org/wiki/Gleitender_Mittelwert>`__
+für den Entfernungswert.
 
 Wenn die Länge auf 0 gesetzt wird, ist das Averaging komplett aus. Desto kleiner
 die Länge des Mittelwerts ist, desto mehr Rauschen ist auf den Daten.

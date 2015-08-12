@@ -11,9 +11,12 @@ com = {
     'api_version': [2, 0, 0],
     'category': 'Brick',
     'device_identifier': 14,
-    'name': ('Servo', 'servo', 'Servo'),
+    'name': ('Servo', 'servo', 'Servo', 'Servo Brick'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for controlling up to seven servos',
+    'description': {
+        'en': 'Drives up to 7 RC Servos with up to 3A',
+        'de': 'Steuert bis zu 7 RC Servos mit bis zu 3A'
+    },
     'released': True,
     'packets': []
 }
@@ -356,7 +359,7 @@ com['packets'].append({
 Sets the minimum and maximum pulse width of the specified servo in µs.
 
 Usually, servos are controlled with a 
-`PWM <http://en.wikipedia.org/wiki/Pulse-width_modulation>`__, whereby the
+`PWM <https://en.wikipedia.org/wiki/Pulse-width_modulation>`__, whereby the
 length of the pulse controls the position of the servo. Every servo has
 different minimum and maximum pulse widths, these can be specified with
 this function.
@@ -376,7 +379,7 @@ maximum pulse width.
 Setzt die minimale und maximale Pulsweite des angegebenen Servos in µs.
 
 Normalerweise werden Servos mit einer
-`PWM <http://de.wikipedia.org/wiki/Pulsweitenmodulation>`__ angesteuert,
+`PWM <https://de.wikipedia.org/wiki/Pulsweitenmodulation>`__ angesteuert,
 wobei die Länge des Pulses die Position des Servos steuert. Jeder Servo
 hat unterschiedliche minimale und maximale Pulsweiten, diese können mit
 dieser Funktion spezifiziert werden.
@@ -530,7 +533,7 @@ com['packets'].append({
 Sets the period of the specified servo in µs.
 
 Usually, servos are controlled with a 
-`PWM <http://en.wikipedia.org/wiki/Pulse-width_modulation>`__. Different
+`PWM <https://en.wikipedia.org/wiki/Pulse-width_modulation>`__. Different
 servos expect PWMs with different periods. Most servos run well with a 
 period of about 20ms.
 
@@ -548,7 +551,7 @@ The default value is 19.5ms (19500µs).
 Setzt die Periode des angegebenen Servos in µs.
 
 Normalerweise werden Servos mit einer
-`PWM <http://de.wikipedia.org/wiki/Pulsweitenmodulation>`__ angesteuert.
+`PWM <https://de.wikipedia.org/wiki/Pulsweitenmodulation>`__ angesteuert.
 Unterschiedliche Servos erwarten PWMs mit unterschiedlichen Perioden.
 Die meisten Servos werden mit einer Periode von 20ms betrieben.
 

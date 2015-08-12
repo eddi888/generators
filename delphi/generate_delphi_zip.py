@@ -52,7 +52,7 @@ class DelphiZipGenerator(common.Generator):
 
         # Copy device examples
         tmp_examples_device_dir = os.path.join(self.tmp_examples_dir,
-                                               device.get_category(),
+                                               device.get_camel_case_category(),
                                                device.get_camel_case_name())
 
         if not os.path.exists(tmp_examples_device_dir):
@@ -79,7 +79,7 @@ class DelphiZipGenerator(common.Generator):
         shutil.copy(os.path.join(root_dir, 'IPConnection.pas'),             self.tmp_source_dir)
         shutil.copy(os.path.join(root_dir, 'LEConverter.pas'),              self.tmp_source_dir)
         shutil.copy(os.path.join(root_dir, 'TimedSemaphore.pas'),           self.tmp_source_dir)
-        shutil.copy(os.path.join(root_dir, 'SHA1.pas'),                     self.tmp_source_dir)
+        shutil.copy(os.path.join(root_dir, 'SHAone.pas'),                   self.tmp_source_dir)
         shutil.copy(os.path.join(root_dir, 'BrickDaemon.pas'),              self.tmp_source_dir)
         shutil.copy(os.path.join(root_dir, 'changelog.txt'),                self.tmp_dir)
         shutil.copy(os.path.join(root_dir, 'readme.txt'),                   self.tmp_dir)
@@ -87,7 +87,7 @@ class DelphiZipGenerator(common.Generator):
 
         # Make Makefile.fpc
         version = common.get_changelog_version(root_dir)
-        units = [filename.replace('.pas', '') for filename in os.listdir(self.tmp_source_dir)]
+        units = sorted([filename.replace('.pas', '') for filename in os.listdir(self.tmp_source_dir)])
 
         common.specialize_template(os.path.join(root_dir, 'Makefile.fpc.template'),
                                    os.path.join(self.tmp_source_dir, 'Makefile.fpc'),

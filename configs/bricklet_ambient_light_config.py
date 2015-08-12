@@ -11,9 +11,12 @@ com = {
     'api_version': [2, 0, 0],
     'category': 'Bricklet',
     'device_identifier': 21,
-    'name': ('AmbientLight', 'ambient_light', 'Ambient Light'),
+    'name': ('AmbientLight', 'ambient_light', 'Ambient Light', 'Ambient Light Bricklet'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for sensing Ambient Light',
+    'description': {
+        'en': 'Measures ambient light up to 900lux',
+        'de': 'Misst Umgebungslicht bis zu 900Lux'
+    },
     'released': True,
     'packets': []
 }
@@ -27,8 +30,8 @@ com['packets'].append({
 'en':
 """
 Returns the illuminance of the ambient light sensor. The value
-has a range of 0 to 9000 and is given in Lux/10, i.e. a value
-of 4500 means that an illuminance of 450 Lux is measured.
+has a range of 0 to 9000 and is given in lux/10, i.e. a value
+of 4500 means that an illuminance of 450lux is measured.
 
 If you want to get the illuminance periodically, it is recommended to use the
 callback :func:`Illuminance` and set the period with 
@@ -38,7 +41,7 @@ callback :func:`Illuminance` and set the period with
 """
 Gibt die Beleuchtungsstärke des Umgebungslichtsensors zurück. Der Wertbereich
 ist von 0 bis 9000 und ist in Lux/10 angegeben, d.h. bei einem Wert von 
-4500 wurde eine Beleuchtungsstärke von 450 Lux gemessen.
+4500 wurde eine Beleuchtungsstärke von 450Lux gemessen.
 
 Wenn die Beleuchtungsstärke periodisch abgefragt werden soll, wird empfohlen
 den Callback :func:`Illuminance` zu nutzen und die Periode mit 

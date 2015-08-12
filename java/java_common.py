@@ -3,7 +3,7 @@
 
 """
 Java Generator
-Copyright (C) 2012-2013 Matthias Bolte <matthias@tinkerforge.com>
+Copyright (C) 2012-2015 Matthias Bolte <matthias@tinkerforge.com>
 Copyright (C) 2011-2013 Olaf Lüke <olaf@tinkerforge.com>
 
 java_common.py: Common Library for generation of Java bindings and documentation
@@ -32,7 +32,7 @@ import common
 
 class JavaDevice(common.Device):
     def get_java_class_name(self):
-        return self.get_category() + self.get_camel_case_name()
+        return self.get_camel_case_category() + self.get_camel_case_name()
 
 class JavaPacket(common.Packet):
     def get_java_object_name(self):
@@ -55,8 +55,8 @@ class JavaPacket(common.Packet):
                 return self.get_java_object_name()
 
         return_type = elements[0].get_java_type()
-        if hasattr(self.get_device().get_generator(), 'is_octave') and \
-           self.get_device().get_generator().is_octave() and return_type == 'char':
+        if hasattr(self.get_generator(), 'is_octave') and \
+           self.get_generator().is_octave() and return_type == 'char':
             return_type = 'String'
 
         if elements[0].get_cardinality() > 1 and elements[0].get_type() != 'string':
@@ -71,8 +71,8 @@ class JavaPacket(common.Packet):
             if element.get_direction() == 'out' and self.get_type() == 'function':
                 continue
             java_type = element.get_java_type()
-            if hasattr(self.get_device().get_generator(), 'is_octave') and \
-               self.get_device().get_generator().is_octave() and java_type == 'char':
+            if hasattr(self.get_generator(), 'is_octave') and \
+               self.get_generator().is_octave() and java_type == 'char':
                 java_type = 'String'
             name = element.get_headless_camel_case_name()
             arr = ''

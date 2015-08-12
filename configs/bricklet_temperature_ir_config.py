@@ -4,16 +4,19 @@
 # with or without modification, are permitted. See the Creative
 # Commons Zero (CC0 1.0) License for more details.
 
-# Temperature-IR Bricklet communication config
+# Temperature IR Bricklet communication config
 
 com = {
     'author': 'Olaf Lüke <olaf@tinkerforge.com>',
     'api_version': [2, 0, 0],
     'category': 'Bricklet',
     'device_identifier': 217,
-    'name': ('TemperatureIR', 'temperature_ir', 'Temperature IR'),
+    'name': ('TemperatureIR', 'temperature_ir', 'Temperature IR', 'Temperature IR Bricklet'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for non-contact temperature sensing',
+    'description': {
+        'en': 'Measures contactless object temperature between -70°C and +380°C',
+        'de': 'Kontaktlose Objekttemperaturmessung zwischen -70°C und +380°C'
+    },
     'released': True,
     'packets': []
 }
@@ -63,7 +66,7 @@ e.g. a value of 3001 means that a temperature of 300.1 °C is measured
 on the surface of the object.
 
 The temperature of different materials is dependent on their `emissivity 
-<http://en.wikipedia.org/wiki/Emissivity>`__. The emissivity of the material
+<https://en.wikipedia.org/wiki/Emissivity>`__. The emissivity of the material
 can be set with :func:`SetEmissivity`.
 
 If you want to get the object temperature periodically, it is recommended 
@@ -79,7 +82,7 @@ ein Wert von 3001 eine gemessene Temperatur von 300,1 °C auf der Oberfläche
 des Objektes.
 
 Die Temperatur von unterschiedlichen Materialien ist abhängig von ihrem `Emissionsgrad
-<http://de.wikipedia.org/wiki/Emissionsgrad>`__. Der Emissionsgrad des Materials kann mit
+<https://de.wikipedia.org/wiki/Emissionsgrad>`__. Der Emissionsgrad des Materials kann mit
 :func:`SetEmissivity` gesetzt werden.
 
 Wenn die Objekttemperatur periodisch abgefragt werden soll, wird empfohlen
@@ -97,7 +100,7 @@ com['packets'].append({
 'doc': ['af', {
 'en':
 """
-Sets the `emissivity <http://en.wikipedia.org/wiki/Emissivity>`__ that is
+Sets the `emissivity <https://en.wikipedia.org/wiki/Emissivity>`__ that is
 used to calculate the surface temperature as returned by 
 :func:`GetObjectTemperature`. 
 
@@ -118,7 +121,7 @@ sensor can handle is 0.1 (value of 6553).
 """,
 'de':
 """
-Setzt den `Emissionsgrad <http://de.wikipedia.org/wiki/Emissionsgrad>`__,
+Setzt den `Emissionsgrad <https://de.wikipedia.org/wiki/Emissionsgrad>`__,
 welcher zur Berechnung der Oberflächentemperatur benutzt wird, wie von
 :func:`GetObjectTemperature` zurückgegeben.
 

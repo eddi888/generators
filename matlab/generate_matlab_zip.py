@@ -64,7 +64,7 @@ class MATLABZipGenerator(common.Generator):
         # Copy device examples
         for flavor in ['matlab', 'octave']:
             tmp_examples_device_dir = os.path.join(self.tmp_flavor_examples_dir[flavor],
-                                                   device.get_category().lower(),
+                                                   device.get_underscore_category(),
                                                    device.get_underscore_name())
 
             if not os.path.exists(tmp_examples_device_dir):
@@ -83,7 +83,7 @@ class MATLABZipGenerator(common.Generator):
             tmp_examples_dir = self.tmp_flavor_examples_dir[flavor]
 
             # Copy IP Connection examples
-            for example in common.find_examples(root_dir, '^example_.*\.m$'):
+            for example in common.find_examples(root_dir, '^' + flavor + '_example_.*\.m$'):
                 shutil.copy(example[1], tmp_examples_dir)
 
             # Copy bindings and readme

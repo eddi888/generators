@@ -11,9 +11,12 @@ com = {
     'api_version': [2, 0, 0],
     'category': 'Brick',
     'device_identifier': 15,
-    'name': ('Stepper', 'stepper', 'Stepper'),
+    'name': ('Stepper', 'stepper', 'Stepper', 'Stepper Brick'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for controlling stepper motors',
+    'description': {
+        'en': 'Drives one bipolar stepper motor with up to 38V and 2.5A per phase',
+        'de': 'Steuert einen bipolaren Schrittmotor mit bis zu 38V und 2,5A pro Phase'
+    },
     'released': True,
     'packets': []
 }
@@ -831,7 +834,7 @@ With synchronous rectification on, the decay can be changed
 decay is used.
 
 For an explanation of synchronous rectification see 
-`here <http://en.wikipedia.org/wiki/Active_rectification>`__.
+`here <https://en.wikipedia.org/wiki/Active_rectification>`__.
 
 .. warning::
  If you want to use high speeds (> 10000 steps/s) for a large 
@@ -850,7 +853,7 @@ Bei aktiver Synchrongleichrichtung kann der Decay Modus geändert werden
 Decay Modus verwendet.
 
 Für eine Erläuterung der Synchrongleichrichtung siehe
-`hier <http://de.wikipedia.org/wiki/Gleichrichter#Synchrongleichrichter>`__.
+`hier <https://de.wikipedia.org/wiki/Gleichrichter#Synchrongleichrichter>`__.
 
 .. warning::
  Wenn hohe Geschwindigkeiten (> 10000 Schritte/s) mit einem großen
@@ -1044,30 +1047,12 @@ com['packets'].append({
 """
 This callback is triggered whenever the Stepper Brick enters a new state. 
 It returns the new state as well as the previous state.
-
-Possible states are:
-
-* 1 = Stop
-* 2 = Acceleration
-* 3 = Run
-* 4 = Deacceleration
-* 5 = Direction change to forward
-* 6 = Direction change to backward
 """,
 'de':
 """
 Dieser Callback wird immer dann ausgelöst wenn der Stepper Brick einen
 neuen Zustand erreicht. Es wird sowohl der neue wie auch der alte Zustand 
 zurückgegeben.
-
-Mögliche Zustände sind:
-
-* 1 = Stopp
-* 2 = Beschleunigung
-* 3 = Fahren
-* 4 = Verzögerung
-* 5 = Richtungswechsel auf Vorwärts
-* 6 = Richtungswechsel auf Rückwärts
 """
 }]
 })

@@ -34,7 +34,7 @@ import common
 
 class TCPIPDocDevice(common.Device):
     def get_tcpip_name(self):
-        return self.get_category() + self.get_camel_case_name()
+        return self.get_camel_case_category() + self.get_camel_case_name()
 
     def replace_tcpip_function_links(self, text):
         cls = self.get_tcpip_name()
@@ -93,26 +93,26 @@ class TCPIPDocDevice(common.Device):
     def get_tcpip_api(self):
         c_str = {
         'en': """
-.. _{1}_{2}_tcpip_callbacks:
+.. _{0}_tcpip_callbacks:
 
 Callbacks
 ^^^^^^^^^
 
-{0}
+{1}
 """,
         'de': """
-.. _{1}_{2}_tcpip_callbacks:
+.. _{0}_tcpip_callbacks:
 
 Callbacks
 ^^^^^^^^^
 
-{0}
+{1}
 """
         }
 
         api = {
         'en': """
-{0}
+.. _{0}_tcpip_api:
 
 API
 ---
@@ -125,7 +125,7 @@ A general description of the TCP/IP protocol structure can be found
 {2}
 """,
         'de': """
-{0}
+.. _{0}_tcpip_api:
 
 API
 ---
@@ -151,13 +151,12 @@ Eine allgemeine Beschreibung der TCP/IP Protokollstruktur findet sich
         if ccf:
             api_str += common.select_lang(common.ccf_str).format('', ccf)
         if c:
-            api_str += common.select_lang(c_str).format(c, self.get_underscore_name(),
-                                                        self.get_category().lower())
+            api_str += common.select_lang(c_str).format(self.get_doc_rst_ref_name(),
+                                                        c)
 
-        ref = '.. _{0}_{1}_tcpip_api:\n'.format(self.get_underscore_name(),
-                                                self.get_category().lower())
-
-        return common.select_lang(api).format(ref, self.replace_tcpip_function_links(self.get_api_doc()), api_str)
+        return common.select_lang(api).format(self.get_doc_rst_ref_name(),
+                                              self.replace_tcpip_function_links(self.get_api_doc()),
+                                              api_str)
 
     def get_tcpip_doc(self):
         doc  = common.make_rst_header(self, has_device_identifier_constant=False)
@@ -169,6 +168,17 @@ Eine allgemeine Beschreibung der TCP/IP Protokollstruktur findet sich
 class TCPIPDocPacket(common.Packet):
     def get_tcpip_formatted_doc(self):
         text = common.select_lang(self.get_doc()[1])
+        constants = {'en': 'meanings', 'de': 'Bedeutungen'}
+        constants_intro = {
+        'en': """
+The following {0} are defined for the parameters of this function:
+
+""",
+        'de': """
+Die folgenden {0} sind für die Parameter dieser Funktion definiert:
+
+"""
+        }
         parameter = {
         'en': 'response value',
         'de': 'Rückgabewert'
@@ -186,6 +196,39 @@ class TCPIPDocPacket(common.Packet):
         text = common.handle_rst_param(text, format_parameter)
         text = common.handle_rst_word(text, parameter, parameters)
         text = common.handle_rst_substitutions(text, self)
+
+        def constant_format(prefix, constant_group, constant_item, value):
+            c = '* {0}: {1}, '.format(value, constant_item.get_underscore_name().replace('_', ' '))
+
+            for_ = {
+            'en': 'for',
+            'de': 'für'
+            }
+
+            c += common.select_lang(for_) + ' '
+
+            e = []
+            for element in constant_group.get_elements():
+                name = element.get_underscore_name()
+                e.append(name)
+
+            if len(e) > 1:
+                and_ = {
+                'en': 'and',
+                'de': 'und'
+                }
+
+                c += ', '.join(e[:-1]) + ' ' + common.select_lang(and_) + ' ' + e[-1]
+            else:
+                c += e[0]
+
+            return c + '\n'
+
+        text += common.format_constants('', self, constants_name=constants,
+                                        char_format='{0}',
+                                        constant_format_func=constant_format,
+                                        constants_intro=constants_intro)
+
         text += common.format_since_firmware(self.get_device(), self)
 
         return common.shift_right(text, 1)

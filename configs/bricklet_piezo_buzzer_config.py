@@ -11,9 +11,12 @@ com = {
     'api_version': [2, 0, 0],
     'category': 'Bricklet',
     'device_identifier': 214,
-    'name': ('PiezoBuzzer', 'piezo_buzzer', 'Piezo Buzzer'),
+    'name': ('PiezoBuzzer', 'piezo_buzzer', 'Piezo Buzzer', 'Piezo Buzzer Bricklet'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for controlling a piezo buzzer',
+    'description': {
+        'en': 'Creates 1kHz beep',
+        'de': 'Erzeugt 1kHz Piepton'
+    },
     'released': True,
     'packets': []
 }

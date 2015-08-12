@@ -11,9 +11,12 @@ com = {
     'api_version': [2, 0, 0],
     'category': 'Bricklet',
     'device_identifier': 210,
-    'name': ('Joystick', 'joystick', 'Joystick'),
+    'name': ('Joystick', 'joystick', 'Joystick', 'Joystick Bricklet'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Dual-Axis Joystick with Button',
+    'description': {
+        'en': '2-axis joystick with push-button',
+        'de': '2-Achsen Joystick mit Taster'
+    },
     'released': True,
     'packets': []
 }

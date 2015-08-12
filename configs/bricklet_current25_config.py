@@ -11,9 +11,12 @@ com = {
     'api_version': [2, 0, 0],
     'category': 'Bricklet',
     'device_identifier': 24,
-    'name': ('Current25', 'current25', 'Current25'),
+    'name': ('Current25', 'current25', 'Current25', 'Current25 Bricklet'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for sensing current of up to 25A',
+    'description': {
+        'en': 'Measures AC/DC current between -25A and +25A',
+        'de': 'Misst Gleich- und Wechselstrom zwischen -25A und +25A'
+    },
     'released': True,
     'packets': []
 }

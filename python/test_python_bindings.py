@@ -37,7 +37,7 @@ class PythonExamplesTester(common.ExamplesTester):
 
         self.python = python
 
-    def test(self, src, is_extra_example):
+    def test(self, cookie, src, is_extra_example):
         if is_extra_example:
             shutil.copy(src, '/tmp/tester/python')
             src = os.path.join('/tmp/tester/python', os.path.split(src)[1])
@@ -46,20 +46,21 @@ class PythonExamplesTester(common.ExamplesTester):
                 '-c',
                 'import py_compile; py_compile.compile("{0}", doraise=True)'.format(src)]
 
-        return subprocess.call(args) == 0
+        self.execute(cookie, args)
 
 def run(path):
-    extra_examples = [os.path.join(path, '../../weather-station/xively/python/weather_xively.py'),
+    extra_examples = [os.path.join(path, '../../weather-station/demo/starter_kit_weather_station_demo/main.py'),
+                      os.path.join(path, '../../weather-station/xively/python/weather_xively.py'),
                       os.path.join(path, '../../weather-station/write_to_lcd/python/weather_station.py'),
                       os.path.join(path, '../../hardware-hacking/remote_switch/python/remote_switch.py'),
                       os.path.join(path, '../../hardware-hacking/smoke_detector/python/smoke_detector.py'),
-                      os.path.join(path, '../../blinkenlights/demo/src/demo.py'),
-                      os.path.join(path, '../../blinkenlights/demo/src/fire_widget.py'),
-                      os.path.join(path, '../../blinkenlights/demo/src/pong_widget.py'),
-                      os.path.join(path, '../../blinkenlights/demo/src/tetris_widget.py'),
-                      os.path.join(path, '../../blinkenlights/demo/src/images_widget.py'),
-                      os.path.join(path, '../../blinkenlights/demo/src/rainbow_widget.py'),
-                      os.path.join(path, '../../blinkenlights/demo/src/text_widget.py'),
+                      os.path.join(path, '../../blinkenlights/demo/starter_kit_blinkenlights_demo/main.py'),
+                      os.path.join(path, '../../blinkenlights/demo/starter_kit_blinkenlights_demo/fire_widget.py'),
+                      os.path.join(path, '../../blinkenlights/demo/starter_kit_blinkenlights_demo/pong_widget.py'),
+                      os.path.join(path, '../../blinkenlights/demo/starter_kit_blinkenlights_demo/tetris_widget.py'),
+                      os.path.join(path, '../../blinkenlights/demo/starter_kit_blinkenlights_demo/images_widget.py'),
+                      os.path.join(path, '../../blinkenlights/demo/starter_kit_blinkenlights_demo/rainbow_widget.py'),
+                      os.path.join(path, '../../blinkenlights/demo/starter_kit_blinkenlights_demo/text_widget.py'),
                       os.path.join(path, '../../blinkenlights/fire/python/fire.py'),
                       os.path.join(path, '../../blinkenlights/games/python/keypress.py'),
                       os.path.join(path, '../../blinkenlights/games/python/pong.py'),

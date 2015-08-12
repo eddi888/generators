@@ -185,7 +185,8 @@ sub _init_local_socket
 	#          threads as they won't call this and will have their local
 	#          copies not properly initialized
 
-	if (defined($local_socket)) {
+	if(defined($local_socket))
+	{
 		$local_socket->close();
 	}
 
@@ -205,9 +206,9 @@ sub _get_local_socket
 
 	lock(${$self->{local_socket_lock_ref}});
 
-	if ($self->{socket_id} != $local_socket_id)
+	if($self->{socket_id} != $local_socket_id)
 	{
-		if (defined($local_socket))
+		if(defined($local_socket))
 		{
 			$local_socket->close();
 		}
@@ -320,7 +321,7 @@ sub connect
 	return 1;
 }
 
-# NOTE: assumes that SOCKET_LOCK is locked
+# NOTE: assumes that socket_fileno is undef and SOCKET_LOCK is locked
 sub _connect_unlocked
 {
 	my ($self, $is_auto_reconnect) = @_;
@@ -345,8 +346,7 @@ sub _connect_unlocked
 	}
 
 	# create socket
-	$self->{socket_fileno} = undef;
-
+	my $socket_fileno = undef;
 	my $socket = IO::Socket::INET->new(PeerAddr => $self->{host},
 	                                   PeerPort => $self->{port},
 	                                   Proto => 'tcp',
@@ -356,7 +356,7 @@ sub _connect_unlocked
 
 	if(!defined($socket))
 	{
-		if (!$is_auto_reconnect)
+		if(!$is_auto_reconnect)
 		{
 			# destroy callback thread
 			$self->{callback_queue}->enqueue([&_QUEUE_EXIT, undef, undef, undef]);
@@ -373,7 +373,7 @@ sub _connect_unlocked
 		$socket->setsockopt(IPPROTO_TCP, TCP_NODELAY, 1);
 
 		$| = 1; # enable autoflush
-		if (defined(&{"MSG_NOSIGNAL"}))
+		if(defined(&{"MSG_NOSIGNAL"}))
 		{
 			$socket->send('', MSG_NOSIGNAL);
 		}
@@ -382,7 +382,7 @@ sub _connect_unlocked
 			$socket->send('');
 		}
 
-		$self->{socket_fileno} = dup($socket->fileno());
+		$socket_fileno = dup($socket->fileno());
 	};
 	$error = $!;
 
@@ -393,7 +393,7 @@ sub _connect_unlocked
 
 	if($error)
 	{
-		if (!$is_auto_reconnect)
+		if(!$is_auto_reconnect)
 		{
 			# destroy callback thread
 			$self->{callback_queue}->enqueue([&_QUEUE_EXIT, undef, undef, undef]);
@@ -401,13 +401,11 @@ sub _connect_unlocked
 			$self->{callback_thread} = undef;
 		}
 
-		# destroy socket
-		$self->_destroy_socket();
-
 		croak(Tinkerforge::Error->_new(Tinkerforge::Error->CONNECT_FAILED,
 		                               "Could not connect to $self->{host}:$self->{port}: $error"));
 	}
 
+	$self->{socket_fileno} = $socket_fileno;
 	$self->{socket_id}++;
 
 	$self->_init_local_socket();
@@ -422,7 +420,7 @@ sub _connect_unlocked
 
 	if(!defined($self->{disconnect_probe_thread}))
 	{
-		if (!$is_auto_reconnect)
+		if(!$is_auto_reconnect)
 		{
 			# destroy callback thread
 			$self->{callback_queue}->enqueue([&_QUEUE_EXIT, undef, undef, undef]);
@@ -449,7 +447,7 @@ sub _connect_unlocked
 	# FIXME: this only covers one case. if the user creates a thread then this
 	#        one will deadlock on Windows if the receive thread is doing a
 	#        blocking recv() call. another case is the user calling a setter or
-	#        getter after an auto-reconnect. the IPConnection takes case of
+	#        getter after an auto-reconnect. the IPConnection takes care of
 	#        its own threads to have a valid local socket before starting to
 	#        receive data. but the program main thread or user-created threads
 	#        will update their local sockets (via _get_local_socket) later while
@@ -468,7 +466,7 @@ sub _connect_unlocked
 		# destroy socket
 		$self->_disconnect_unlocked();
 
-		if (!$is_auto_reconnect)
+		if(!$is_auto_reconnect)
 		{
 			# destroy callback thread
 			$self->{callback_queue}->enqueue([&_QUEUE_EXIT, undef, undef, undef]);
@@ -486,7 +484,7 @@ sub _connect_unlocked
 	$self->{auto_reconnect_allowed} = 0;
 
 	# trigger connected callback
-	if ($is_auto_reconnect)
+	if($is_auto_reconnect)
 	{
 		$self->{callback_queue}->enqueue([&_QUEUE_META, &CALLBACK_CONNECTED,
 		                                  &CONNECT_REASON_AUTO_RECONNECT, undef]);
@@ -516,19 +514,19 @@ sub disconnect
 	my $callback_queue = undef;
 	my $callback_thread = undef;
 
-	if (1) {
+	if(1) {
 		lock(${$self->{socket_lock_ref}});
 
 		$self->{auto_reconnect_allowed} = 0;
 
-		if ($self->{auto_reconnect_pending})
+		if($self->{auto_reconnect_pending})
 		{
 			# abort pending auto-reconnect
 			$self->{auto_reconnect_pending} = 0;
 		}
 		else
 		{
-			if (!defined($self->{socket_fileno}))
+			if(!defined($self->{socket_fileno}))
 			{
 				croak(Tinkerforge::Error->_new(Tinkerforge::Error->NOT_CONNECTED,
 				                               'Not connected'));
@@ -551,7 +549,7 @@ sub disconnect
 	                          &DISCONNECT_REASON_REQUEST, undef]);
 	$callback_queue->enqueue([&_QUEUE_EXIT, undef, undef, undef]);
 
-	if (threads->self() != $callback_thread)
+	if(threads->self() != $callback_thread)
 	{
 		$callback_thread->join();
 	}
@@ -568,7 +566,7 @@ sub disconnect
 	return 1;
 }
 
-# NOTE: assumes that SOCKET_LOCK is locked
+# NOTE: assumes that socket_fileno is not undef and SOCKET_LOCK is locked
 sub _disconnect_unlocked
 {
 	my ($self) = @_;
@@ -617,7 +615,7 @@ sub _destroy_socket
 {
 	my ($self) = @_;
 
-	if (defined($self->{socket_fileno}))
+	if(defined($self->{socket_fileno}))
 	{
 		my $socket = $self->_get_local_socket();
 
@@ -640,14 +638,14 @@ sub _read_uint32_non_blocking
 
 	my $fh = undef;
 
-	if (!defined(sysopen($fh, $filename, O_RDONLY | O_NONBLOCK)))
+	if(!defined(sysopen($fh, $filename, O_RDONLY | O_NONBLOCK)))
 	{
 		return undef;
 	}
 
 	my $bytes = undef;
 
-	if (sysread($fh, $bytes, 4) != 4)
+	if(sysread($fh, $bytes, 4) != 4)
 	{
 		close($fh);
 
@@ -671,14 +669,14 @@ sub _get_random_uint32
 
 	my $r = $self->_read_uint32_non_blocking('/dev/urandom');
 
-	if (defined($r))
+	if(defined($r))
 	{
 		return $r;
 	}
 
 	$r = $self->_read_uint32_non_blocking('/dev/random');
 
-	if (defined($r))
+	if(defined($r))
 	{
 		return $r;
 	}
@@ -734,7 +732,7 @@ sub authenticate
 
 	lock(${$self->{authentication_lock_ref}});
 
-	if ($self->{next_authentication_nonce} == 0)
+	if($self->{next_authentication_nonce} == 0)
 	{
 		$self->{next_authentication_nonce} = $self->_get_random_uint32();
 	}
@@ -797,7 +795,7 @@ sub set_auto_reconnect
 
 	$self->{auto_reconnect} = $auto_reconnect;
 
-	if (!$self->{auto_reconnect})
+	if(!$self->{auto_reconnect})
 	{
 		# abort potentially pending auto reconnect
 		$self->{auto_reconnect_allowed} = 0;
@@ -830,13 +828,12 @@ sub set_timeout
 {
 	my ($self, $timeout) = @_;
 
-	if ($timeout < 0)
+	if($timeout < 0)
 	{
 		croak(Tinkerforge::Error->_new(Tinkerforge::Error->INVALID_PARAMETER, 'Timeout cannot be negative'));
 	}
 
 	$self->{timeout} = $timeout;
-
 }
 
 =item get_timeout()
@@ -979,7 +976,7 @@ sub _handle_disconnect_by_peer
 
 	$self->{auto_reconnect_allowed} = 1;
 
-	if ($disconnect_immediately) {
+	if($disconnect_immediately) {
 		$self->_disconnect_unlocked();
 	}
 
@@ -1004,7 +1001,7 @@ sub _ipcon_send
 		lock(${$self->{send_lock_ref}});
 
 		$| = 1; # enable autoflush
-		if (defined(&{"MSG_NOSIGNAL"}))
+		if(defined(&{"MSG_NOSIGNAL"}))
 		{
 			$rc = $self->_get_local_socket()->send($packet, MSG_NOSIGNAL);
 		}
@@ -1383,7 +1380,7 @@ sub _dispatch_meta
 
 			# don't close the socket if it got disconnected or
 			# reconnected in the meantime
-			if (defined($self->{socket_fileno}) && $self->{socket_id} == $socket_id)
+			if(defined($self->{socket_fileno}) && $self->{socket_id} == $socket_id)
 			{
 				# destroy disconnect probe thread
 				$self->{disconnect_probe_queue}->enqueue(&_QUEUE_EXIT);
@@ -1400,9 +1397,9 @@ sub _dispatch_meta
 			eval("$self->{registered_callbacks}->{&CALLBACK_DISCONNECTED}($reason);");
 		}
 
-		if ($reason != &DISCONNECT_REASON_REQUEST &&
-			$self->{auto_reconnect} &&
-			$self->{auto_reconnect_allowed})
+		if($reason != &DISCONNECT_REASON_REQUEST &&
+		   $self->{auto_reconnect} &&
+		   $self->{auto_reconnect_allowed})
 		{
 			$self->{auto_reconnect_pending} = 1;
 
@@ -1414,10 +1411,10 @@ sub _dispatch_meta
 			{
 				$retry = 0;
 
-				if (1) {
+				if(1) {
 					lock(${$self->{socket_lock_ref}});
 
-					if ($self->{auto_reconnect_allowed} && !defined($self->{socket_fileno}))
+					if($self->{auto_reconnect_allowed} && !defined($self->{socket_fileno}))
 					{
 						eval
 						{
@@ -1434,7 +1431,7 @@ sub _dispatch_meta
 					}
 				}
 
-				if ($retry)
+				if($retry)
 				{
 					# wait a moment to give another thread a chance to
 					# interrupt the auto-reconnect
@@ -1442,6 +1439,272 @@ sub _dispatch_meta
 				}
 			}
 		}
+	}
+
+	return 1;
+}
+
+sub _dispatch_response
+{
+	my ($self, $payload, $form_unpack, $uid, $fid) = @_;
+
+	my @form_unpack_arr = split(' ', $form_unpack);
+
+	if(scalar(@form_unpack_arr) > 1)
+	{
+		my @copy_info_arr;
+		my $copy_info_arr_len;
+		my $copy_from_index = 0;
+		my $arguments_arr_index = 0;
+		my $anon_arr_index = 0;
+		my @return_arr;
+		my @arguments_arr = unpack('('.$form_unpack.')<', $payload);
+
+		foreach(@form_unpack_arr)
+		{
+			my $count = $_;
+			my @form_single_arr = split('', $_);
+
+			if($form_single_arr[0] eq 'c' ||
+			   $form_single_arr[0] eq 'C' ||
+			   $form_single_arr[0] eq 's' ||
+			   $form_single_arr[0] eq 'S' ||
+			   $form_single_arr[0] eq 'l' ||
+			   $form_single_arr[0] eq 'L' ||
+			   $form_single_arr[0] eq 'q' ||
+			   $form_single_arr[0] eq 'Q' ||
+			   $form_single_arr[0] eq 'f')
+			{
+				if(scalar(@form_single_arr) > 1)
+				{
+					$count =~ s/[^\d]//g;
+					push(@copy_info_arr, [$copy_from_index, $count]);
+					$copy_from_index += $count;
+
+					next;
+				}
+				else
+				{
+					$copy_from_index++;
+				}
+			}
+			else
+			{
+				$copy_from_index++;
+			}
+		}
+
+		$copy_info_arr_len = scalar(@copy_info_arr);
+
+		if($copy_info_arr_len > 0)
+		{
+			while($arguments_arr_index < scalar(@arguments_arr))
+			{
+				if(scalar(@copy_info_arr) > 0)
+				{
+					if($copy_info_arr[0][0] == $arguments_arr_index)
+					{
+						my $anon_arr_iterator = $copy_info_arr[0][0];
+
+						if($anon_arr_index == 0)
+						{
+							$anon_arr_index = $anon_arr_iterator;
+						}
+
+						$return_arr[$anon_arr_index] = [];
+
+						for(; $anon_arr_iterator < ($copy_info_arr[0][0] + $copy_info_arr[0][1]); $anon_arr_iterator++)
+						{
+							push($return_arr[$anon_arr_index], $arguments_arr[$anon_arr_iterator]);
+						}
+
+						$anon_arr_index++;
+						$arguments_arr_index += $copy_info_arr[0][1];
+						shift(@copy_info_arr);
+					}
+					else
+					{
+						push(@return_arr, $arguments_arr[$arguments_arr_index]);
+						$anon_arr_index++;
+						$arguments_arr_index++;
+					}
+				}
+				else
+				{
+					push(@return_arr, $arguments_arr[$arguments_arr_index]);
+					$arguments_arr_index++;
+				}
+			}
+
+			my $i = 0;
+
+			foreach(@form_unpack_arr)
+			{
+				my @form_single_arr = split('', $_);
+
+				if($form_single_arr[0] eq 'a' && scalar(@form_single_arr) > 1)
+				{
+					my @string_to_split_arr = split('', $return_arr[$i]);
+					$return_arr[$i] = [];
+
+					foreach(@string_to_split_arr)
+					{
+						push($return_arr[$i], $_);
+					}
+				}
+
+				$i++;
+			}
+
+			if(defined($fid))
+			{
+				if(defined($uid))
+				{
+					eval("$self->{devices}->{$uid}->{registered_callbacks}->{$fid}(\@return_arr)");
+				}
+				else
+				{
+					eval("$self->{registered_callbacks}->{$fid}(\@return_arr)");
+				}
+			}
+
+			return @return_arr;
+		}
+		elsif($copy_info_arr_len == 0)
+		{
+			my @return_arr = unpack($form_unpack, $payload);
+			my $i = 0;
+
+			foreach(@form_unpack_arr)
+			{
+				my @form_single_arr = split('', $_);
+
+				if($form_single_arr[0] eq 'a' && scalar(@form_single_arr) > 1)
+				{
+					my @string_to_split_arr = split('', $return_arr[$i]);
+					$return_arr[$i] = [];
+
+					foreach(@string_to_split_arr)
+					{
+						push($return_arr[$i], $_);
+					}
+				}
+
+				$i++;
+			}
+
+			if(defined($fid))
+			{
+				if(defined($uid))
+				{
+					eval("$self->{devices}->{$uid}->{registered_callbacks}->{$fid}(\@return_arr)");
+				}
+				else
+				{
+					eval("$self->{registered_callbacks}->{$fid}(\@return_arr)");
+				}
+			}
+
+			return @return_arr;
+		}
+	}
+	elsif(scalar(@form_unpack_arr) == 1)
+	{
+		my @form_unpack_arr_0_arr = split('', $form_unpack_arr[0]);
+
+		if(scalar(@form_unpack_arr_0_arr) > 1)
+		{
+			my @unpack_tmp_arr = unpack($form_unpack, $payload);
+
+			if($form_unpack_arr_0_arr[0] eq 'a')
+			{
+				my @return_arr = split('', $unpack_tmp_arr[0]);
+
+				if(defined($fid))
+				{
+					if(defined($uid))
+					{
+						eval("$self->{devices}->{$uid}->{registered_callbacks}->{$fid}(\@return_arr)");
+					}
+					else
+					{
+						eval("$self->{registered_callbacks}->{$fid}(\@return_arr)");
+					}
+				}
+
+				return \@return_arr;
+			}
+			elsif($form_unpack_arr_0_arr[0] eq 'Z')
+			{
+				my @return_arr = @unpack_tmp_arr;
+
+				if(defined($fid))
+				{
+					if(defined($uid))
+					{
+						eval("$self->{devices}->{$uid}->{registered_callbacks}->{$fid}($return_arr[0])");
+					}
+					else
+					{
+						eval("$self->{registered_callbacks}->{$fid}($return_arr[0])");
+					}
+				}
+
+				return $return_arr[0];
+			}
+			else
+			{
+				my @return_arr = @unpack_tmp_arr;
+
+				if(defined($fid))
+				{
+					if(defined($uid))
+					{
+						eval("$self->{devices}->{$uid}->{registered_callbacks}->{$fid}(\@return_arr)");
+					}
+					else
+					{
+						eval("$self->{registered_callbacks}->{$fid}(\@return_arr)");
+					}
+				}
+
+				return \@return_arr;
+			}
+		}
+		elsif(scalar(@form_unpack_arr_0_arr) == 1)
+		{
+			my $unpack_tmp = unpack($form_unpack, $payload);
+
+			if(defined($fid))
+			{
+				if(defined($uid))
+				{
+					eval("$self->{devices}->{$uid}->{registered_callbacks}->{$fid}($unpack_tmp)");
+				}
+				else
+				{
+					eval("$self->{registered_callbacks}->{$fid}($unpack_tmp)");
+				}
+			}
+
+			return $unpack_tmp;
+		}
+	}
+	elsif(scalar(@form_unpack_arr) == 0)
+	{
+		if(defined($fid))
+		{
+			if(defined($uid))
+			{
+				eval("$self->{devices}->{$uid}->{registered_callbacks}->{$fid}()");
+			}
+			else
+			{
+				eval("$self->{registered_callbacks}->{$fid}()");
+			}
+		}
+
+		return 1;
 	}
 
 	return 1;
@@ -1460,171 +1723,9 @@ sub _dispatch_packet
 	{
 		if(defined($self->{registered_callbacks}->{&CALLBACK_ENUMERATE}))
 		{
-			my $form_unpack = 'Z8 Z8 Z C3 C3 S C';
-			my @form_unpack_arr = split(' ', $form_unpack);
-			my @copy_info_arr;
-			my $copy_info_arr_len;
-			my $copy_from_index = 0;
-			my $arguments_arr_index = 0;
-			my $anon_arr_index = 0;
-			my @return_arr;
-			my @arguments_arr = unpack($form_unpack, $payload);
-
-			if(scalar(@form_unpack_arr) > 1)
-			{
-				foreach(@form_unpack_arr)
-				{
-					my $count = $_;
-					my @form_single_arr = split('', $_);
-
-					if($form_single_arr[0] eq 'c' ||
-					   $form_single_arr[0] eq 'C' ||
-					   $form_single_arr[0] eq 's' ||
-					   $form_single_arr[0] eq 'S' ||
-					   $form_single_arr[0] eq 'l' ||
-					   $form_single_arr[0] eq 'L' ||
-					   $form_single_arr[0] eq 'q' ||
-					   $form_single_arr[0] eq 'Q' ||
-					   $form_single_arr[0] eq 'f')
-					{
-							if(scalar(@form_single_arr) > 1)
-							{
-								$count =~ s/[^\d]//g;
-								push(@copy_info_arr, [$copy_from_index, $count]);
-								$copy_from_index += $count;
-
-								next;
-							}
-							else
-							{
-								$copy_from_index ++;
-							}
-					}
-					else
-					{
-						$copy_from_index ++;
-					}
-				}
-
-				$copy_info_arr_len = scalar(@copy_info_arr);
-
-				if($copy_info_arr_len > 0)
-				{
-					while($arguments_arr_index < scalar(@arguments_arr))
-					{
-						if(scalar(@copy_info_arr) > 0)
-						{
-							if($copy_info_arr[0][0] == $arguments_arr_index)
-							{
-								my $anon_arr_iterator = $copy_info_arr[0][0];
-
-								if($anon_arr_index == 0)
-								{
-									$anon_arr_index = $anon_arr_iterator;
-								}
-
-								$return_arr[$anon_arr_index] = [];
-
-								for(; $anon_arr_iterator < ($copy_info_arr[0][0]+$copy_info_arr[0][1]); $anon_arr_iterator++)
-								{
-									push($return_arr[$anon_arr_index], $arguments_arr[$anon_arr_iterator]);
-								}
-
-								$anon_arr_index ++;
-								$arguments_arr_index += $copy_info_arr[0][1];
-								shift(@copy_info_arr);
-							}
-							else
-							{
-								push(@return_arr, $arguments_arr[$arguments_arr_index]);
-								$anon_arr_index ++;
-								$arguments_arr_index ++;
-							}
-						}
-						else
-						{
-							push(@return_arr, $arguments_arr[$arguments_arr_index]);
-							$arguments_arr_index ++;
-						}
-					}
-
-					my $i = 0;
-
-					foreach(@form_unpack_arr)
-					{
-						my @form_single_arr = split('', $_);
-
-						if($form_single_arr[0] eq 'a' && scalar(@form_single_arr) > 1)
-						{
-							my @string_to_split_arr = split('', $return_arr[$i]);
-							$return_arr[$i] = [];
-
-							foreach(@string_to_split_arr)
-							{
-								push($return_arr[$i], $_);
-							}
-						}
-						$i ++;
-					}
-
-					eval("$self->{registered_callbacks}->{&CALLBACK_ENUMERATE}(\@return_arr)");
-
-					return 1;
-				}
-
-				if($copy_info_arr_len == 0)
-				{
-					my @return_arr = unpack($form_unpack, $payload);
-					my $i = 0;
-
-					foreach(@form_unpack_arr)
-					{
-						my @form_single_arr = split('', $_);
-
-						if($form_single_arr[0] eq 'a' && scalar(@form_single_arr) > 1)
-						{
-							my @string_to_split_arr = split('', $return_arr[$i]);
-							$return_arr[$i] = [];
-
-							foreach(@string_to_split_arr)
-							{
-								push($return_arr[$i], $_);
-							}
-						}
-						$i ++;
-					}
-
-					eval("$self->{registered_callbacks}->{&CALLBACK_ENUMERATE}(\@return_arr)");
-				}
-			}
-
-			if(scalar(@form_unpack_arr) == 1)
-			{
-				my @form_unpack_arr_0_arr = split('', $form_unpack_arr[0]);
-
-				if(scalar(@form_unpack_arr_0_arr) > 1)
-				{
-					my @unpack_tmp_arr = unpack($form_unpack, $payload);
-
-					if($form_unpack_arr_0_arr[0] eq 'a')
-					{
-						my @return_arr = split('', $unpack_tmp_arr[0]);
-						eval("$self->{registered_callbacks}->{&CALLBACK_ENUMERATE}(\@return_arr)");
-					}
-					if($form_unpack_arr_0_arr[0] eq 'Z')
-					{
-						my @return_arr = @unpack_tmp_arr;
-						eval("$self->{registered_callbacks}->{&CALLBACK_ENUMERATE}($return_arr[0])");
-					}
-					my @return_arr = @unpack_tmp_arr;
-					eval("$self->{registered_callbacks}->{&CALLBACK_ENUMERATE}(\@return_arr)");
-				}
-				if(scalar(@form_unpack_arr_0_arr) == 1)
-				{
-					eval("$self->{registered_callbacks}->{&CALLBACK_ENUMERATE}(unpack($form_unpack, $payload))");
-				}
-			}
+			$self->_dispatch_response($payload, 'Z8 Z8 Z C3 C3 S C', undef, &CALLBACK_ENUMERATE);
 		}
+
 		return 1;
 	}
 
@@ -1635,24 +1736,7 @@ sub _dispatch_packet
 
 	if(defined($self->{devices}->{$uid}->{registered_callbacks}->{$fid}))
 	{
-		my @callback_format_arr = split(' ', $self->{devices}->{$uid}->{callback_formats}->{$fid});
-
-		if(scalar(@callback_format_arr) > 1)
-		{
-			my @callback_return_arr = unpack($self->{devices}->{$uid}->{callback_formats}->{$fid}, $payload);
-			eval("$self->{devices}->{$uid}->{registered_callbacks}->{$fid}(\@callback_return_arr)");
-		}
-
-		if(scalar(@callback_format_arr) == 1)
-		{
-			my $_payload_unpacked = unpack($self->{devices}->{$uid}->{callback_formats}->{$fid}, $payload);
-			eval("$self->{devices}->{$uid}->{registered_callbacks}->{$fid}($_payload_unpacked)");
-		}
-
-		if(scalar(@callback_format_arr) == 0)
-		{
-			eval("$self->{devices}->{$uid}->{registered_callbacks}->{$fid}()");
-		}
+		$self->_dispatch_response($payload, $self->{devices}->{$uid}->{callback_formats}->{$fid}, $uid, $fid);
 	}
 
 	return 1;
@@ -1673,7 +1757,7 @@ sub _disconnect_probe_thread_subroutine
 			last;
 		}
 
-		if ($self->{disconnect_probe_flag}) {
+		if($self->{disconnect_probe_flag}) {
 			my $packet = $self->_create_packet_header(undef, 8, &_FUNCTION_DISCONNECT_PROBE);
 
 			my $rc;
@@ -1682,7 +1766,7 @@ sub _disconnect_probe_thread_subroutine
 				lock(${$self->{send_lock_ref}});
 
 				$| = 1; # enable autoflush
-				if (defined(&{"MSG_NOSIGNAL"}))
+				if(defined(&{"MSG_NOSIGNAL"}))
 				{
 					$rc = $self->_get_local_socket()->send($packet, MSG_NOSIGNAL);
 				}

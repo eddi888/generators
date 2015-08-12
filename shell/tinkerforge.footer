@@ -1,7 +1,12 @@
 
 def command_call(ctx, argv):
+	if listen_mode:
+		prefix = ''
+	else:
+		prefix = 'tinkerforge '
+
 	# FIXME: add description
-	parser = Parser(ctx, 'call')
+	parser = Parser(ctx, 'call', epilog="try '{0}call <device> --help' for device specific help.".format(prefix))
 	device_choices = sorted(call_devices.keys())
 
 	class ListDevicesAction(argparse.Action):
@@ -21,8 +26,13 @@ def command_call(ctx, argv):
 	call_devices[args.device](ctx, args.args)
 
 def command_dispatch(ctx, argv):
+	if listen_mode:
+		prefix = ''
+	else:
+		prefix = 'tinkerforge '
+
 	# FIXME: add description
-	parser = Parser(ctx, 'dispatch')
+	parser = Parser(ctx, 'dispatch', epilog="try '{0}dispatch <device> --help' for device specific help.".format(prefix))
 	device_choices = sorted(dispatch_devices.keys())
 
 	class ListDevicesAction(argparse.Action):
@@ -53,7 +63,7 @@ def command_enumerate(ctx, argv):
 	}
 
 	parser.add_argument('--duration', default=250, type=create_symbol_converter(ctx, int, {'exit-after-first': 0, 'forever': -1}), help='time (msec) to dispatch incoming enumerate responses (exit-after-first: 0, forever: -1), default: 250', metavar='<duration>')
-	parser.add_argument('--types', default=[IPConnection.ENUMERATION_TYPE_AVAILABLE], type=create_array_converter(ctx, create_symbol_converter(ctx, int, enumeration_type_symbols, True), 3, False), help='array of enumeration types to dispatch (available: 0, connected: 1, disconnected: 2, all: -1), default: available', metavar='<types>')
+	parser.add_argument('--types', default=[IPConnection.ENUMERATION_TYPE_AVAILABLE], type=create_array_converter(ctx, create_symbol_converter(ctx, int, enumeration_type_symbols, strict=True), None, 3, length_is_fixed=False), help='array of enumeration types to dispatch (available: 0, connected: 1, disconnected: 2, all: -1), default: available', metavar='<types>')
 
 	if enable_execute:
 		parser.add_argument('--execute', type=str, help='shell command line to execute for each incoming response', metavar='<command>')
@@ -85,10 +95,10 @@ def command_enumerate(ctx, argv):
 
 		return values
 
-	if args.execute is not None:
+	if args.execute != None:
 		def callback(*values):
 			if -1 in args.types or values[6] in args.types:
-				values = format_symbolic_output(ctx, fix_position(values), symbols)
+				values = format_escaped_output(ctx, format_symbolic_output(ctx, fix_position(values), symbols))
 
 				execute_response(ctx, args.execute, names, values)
 				return True
@@ -101,7 +111,7 @@ def command_enumerate(ctx, argv):
 					else:
 						ctx.output(ctx.group_separator)
 
-				values = format_symbolic_output(ctx, fix_position(values), symbols)
+				values = format_escaped_output(ctx, format_symbolic_output(ctx, fix_position(values), symbols))
 
 				output_response(ctx, names, values)
 				return True
@@ -120,7 +130,7 @@ def command_enumerate(ctx, argv):
 			while not exit_flag[0] and not ctx.abort:
 				time.sleep(0.1)
 
-				if ctx.async_exception is not None:
+				if ctx.async_exception != None:
 					raise ctx.async_exception
 		elif args.duration < 0:
 			ipcon.register_callback(IPConnection.CALLBACK_ENUMERATE, callback)
@@ -129,7 +139,7 @@ def command_enumerate(ctx, argv):
 			while not ctx.abort:
 				time.sleep(1)
 
-				if ctx.async_exception is not None:
+				if ctx.async_exception != None:
 					raise ctx.async_exception
 		else:
 			ipcon.register_callback(IPConnection.CALLBACK_ENUMERATE, callback)
@@ -142,14 +152,14 @@ def command_enumerate(ctx, argv):
 			# FIXME: only checking for an exception after the complete sleep
 			#        is not good, sleep in shorter steps here to check for
 			#        exception more often
-			if ctx.async_exception is not None:
+			if ctx.async_exception != None:
 				raise ctx.async_exception
 
 	connect_ipcon_and_call(ctx, function)
 
 def command_listen(ctx, argv):
 	# FIXME: add description
-	parser = Parser(ctx, 'listen', epilog="In listen mode some command line options are disabled by default for incoming commands.\n\nThe --host and --port options are disabled by default so incoming commands can only connect to the host and port given to the listen command. Use --enable-host and --enable-port to enable these options for incoming commands.\n\nThe --execute option for getter calls and callback dispatching is disabled by default so incoming command cannot execute other commands. Use --enable-execute to enable this option for incoming commands.\n\nNo group separator is included in the output and the --group-separator option is ignored.\n\nIncoming commands have to be terminated by \\n. The output is also terminated by \\n.")
+	parser = Parser(ctx, 'listen', epilog="in listen mode some command line options are disabled by default for incoming commands.\n\nthe --host and --port options are disabled by default so incoming commands can only connect to the host and port given to the listen command. use --enable-host and --enable-port to enable these options for incoming commands.\n\nthe --execute option for getter calls and callback dispatching is disabled by default so incoming command cannot execute other commands. use --enable-execute to enable this option for incoming commands.\n\nno group separator is included in the output and the --group-separator option is ignored.\n\nincoming commands have to be terminated by \\n. the output is also terminated by \\n.")
 
 	parser.add_argument('--address', default='0.0.0.0', type=str, help='IP address to listen to, default: 0.0.0.0', metavar='<address>')
 	parser.add_argument('--port', default=4217, type=convert_int, help='port number to listen to, default: 4217', metavar='<port>')
@@ -292,23 +302,24 @@ def parse(ctx, argv):
 	else:
 		prefix = 'tinkerforge '
 
-	parser = Parser(ctx, '', epilog="Try '{0}<command> --help' for command specific help.".format(prefix))
+	# FIXME: add description
+	parser = Parser(ctx, '', epilog="try '{0}<command> --help' for command specific help.".format(prefix))
 	command_choices = ['call', 'dispatch', 'enumerate']
 
 	if not listen_mode:
 		command_choices.append('listen')
 
-	if ctx.host is not None:
+	if ctx.host != None:
 		host_default = ctx.host
 	else:
 		host_default = 'localhost'
 
-	if ctx.port is not None:
+	if ctx.port != None:
 		port_default = ctx.port
 	else:
 		port_default = 4223
 
-	if ctx.item_separator is not None:
+	if ctx.item_separator != None:
 		item_separator_default = ctx.item_separator
 	else:
 		item_separator_default = ','
@@ -318,12 +329,32 @@ def parse(ctx, argv):
 	else:
 		item_separator_help_suffix = ''
 
-	if ctx.no_symbolic_input is not None:
+	if ctx.array_ellipsis != None:
+		array_ellipsis_default = ctx.array_ellipsis
+	else:
+		array_ellipsis_default = '..'
+
+	if array_ellipsis_default == '..':
+		array_ellipsis_help_suffix = ' (two dots)'
+	else:
+		array_ellipsis_help_suffix = ''
+
+	if ctx.no_escaped_input != None:
+		no_escaped_input_default = ctx.no_escaped_input
+	else:
+		no_escaped_input_default = False
+
+	if ctx.no_escaped_output != None:
+		no_escaped_output_default = ctx.no_escaped_output
+	else:
+		no_escaped_output_default = False
+
+	if ctx.no_symbolic_input != None:
 		no_symbolic_input_default = ctx.no_symbolic_input
 	else:
 		no_symbolic_input_default = False
 
-	if ctx.no_symbolic_output is not None:
+	if ctx.no_symbolic_output != None:
 		no_symbolic_output_default = ctx.no_symbolic_output
 	else:
 		no_symbolic_output_default = False
@@ -350,9 +381,11 @@ def parse(ctx, argv):
 	else:
 		setattr(namespace, 'group_separator', '\n')
 
+	parser.add_argument('--array-ellipsis', default=array_ellipsis_default, type=str, help='ellipsis for arrays, default: {0}{1}'.format(array_ellipsis_default, array_ellipsis_help_suffix), metavar='<array-ellipsis>')
+	parser.add_argument('--no-escaped-input', const=True, default=no_escaped_input_default, action='store_const', help='disable escaped input of values')
+	parser.add_argument('--no-escaped-output', const=True, default=no_escaped_output_default, action='store_const', help='disable escaped output of values')
 	parser.add_argument('--no-symbolic-input', const=True, default=no_symbolic_input_default, action='store_const', help='disable symbolic input of values')
 	parser.add_argument('--no-symbolic-output', const=True, default=no_symbolic_output_default, action='store_const', help='disable symbolic output of values')
-
 	parser.add_argument('command', choices=command_choices, help='{' + ', '.join(command_choices) + '}', metavar='<command>')
 	parser.add_argument('args', nargs=argparse.REMAINDER, help='command specific arguments', metavar='<args>')
 
@@ -361,21 +394,29 @@ def parse(ctx, argv):
 	ctx.host = args.host
 	ctx.port = args.port
 	ctx.secret = args.secret
-
 	ctx.item_separator = args.item_separator
-	ctx.item_separator = ctx.item_separator.replace('\\t', '\t')
-	ctx.item_separator = ctx.item_separator.replace('\\r', '\r')
-	ctx.item_separator = ctx.item_separator.replace('\\n', '\n')
-	ctx.item_separator = ctx.item_separator.replace('\\\\', '\\')
-
 	ctx.group_separator = args.group_separator
-	ctx.group_separator = ctx.group_separator.replace('\\t', '\t')
-	ctx.group_separator = ctx.group_separator.replace('\\r', '\r')
-	ctx.group_separator = ctx.group_separator.replace('\\n', '\n')
-	ctx.group_separator = ctx.group_separator.replace('\\\\', '\\')
-
+	ctx.array_ellipsis = args.array_ellipsis
+	ctx.no_escaped_input = args.no_escaped_input
+	ctx.no_escaped_output = args.no_escaped_output
 	ctx.no_symbolic_input = args.no_symbolic_input
 	ctx.no_symbolic_output = args.no_symbolic_output
+
+	if not ctx.no_escaped_input:
+		try:
+			ctx.item_separator = ctx.item_separator.decode('string-escape')
+		except ValueError:
+			parser.error('argument --item-separator: invalid escape sequence: %r' % ctx.item_separator)
+
+		try:
+			ctx.group_separator = ctx.group_separator.decode('string-escape')
+		except ValueError:
+			parser.error('argument --group-separator: invalid escape sequence: %r' % ctx.group_separator)
+
+		try:
+			ctx.array_ellipsis = ctx.array_ellipsis.decode('string-escape')
+		except ValueError:
+			parser.error('argument --array-ellipsis: invalid escape sequence: %r' % ctx.array_ellipsis)
 
 	commands = {
 	'call': command_call,
@@ -404,7 +445,7 @@ def main():
 	except ParserExit:
 		sys.exit(0)
 	except FatalError as e:
-		if ctx.current_parser is not None:
+		if ctx.current_parser != None:
 			prog = ctx.current_parser.prog
 		else:
 			prog = 'tinkerforge'

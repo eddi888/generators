@@ -3,7 +3,7 @@
 
 """
 Ruby Bindings Generator
-Copyright (C) 2012-2013 Matthias Bolte <matthias@tinkerforge.com>
+Copyright (C) 2012-2015 Matthias Bolte <matthias@tinkerforge.com>
 Copyright (C) 2011 Olaf Lüke <olaf@tinkerforge.com>
 
 generate_ruby.py: Generator for Ruby bindings
@@ -39,7 +39,7 @@ class RubyBindingsDevice(ruby_common.RubyDevice):
 """
         date = datetime.datetime.now().strftime("%Y-%m-%d")
         version = common.get_changelog_version(self.get_generator().get_bindings_root_directory())
-        lower_type = self.get_category().lower()
+        lower_type = self.get_underscore_category()
 
         return include.format(common.gen_text_hash.format(date, *version),
                               lower_type, self.get_underscore_name())
@@ -49,7 +49,11 @@ class RubyBindingsDevice(ruby_common.RubyDevice):
   # {1}
   class {0} < Device
     DEVICE_IDENTIFIER = {2} # :nodoc:
-""".format(self.get_ruby_class_name(), self.get_description(), self.get_device_identifier())
+    DEVICE_DISPLAY_NAME = '{3}' # :nodoc:
+""".format(self.get_ruby_class_name(),
+           self.get_description(),
+           self.get_device_identifier(),
+           self.get_long_display_name())
 
     def get_ruby_callback_id_definitions(self):
         cbs = ''
@@ -269,7 +273,7 @@ class RubyBindingsGenerator(common.BindingsGenerator):
         return ruby_common.RubyElement
 
     def generate(self, device):
-        filename = '{0}_{1}.rb'.format(device.get_category().lower(), device.get_underscore_name())
+        filename = '{0}_{1}.rb'.format(device.get_underscore_category(), device.get_underscore_name())
 
         rb = open(os.path.join(self.get_bindings_root_directory(), 'bindings', filename), 'wb')
         rb.write(device.get_ruby_source())

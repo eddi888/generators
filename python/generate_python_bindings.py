@@ -3,7 +3,7 @@
 
 """
 Python Bindings Generator
-Copyright (C) 2012-2013 Matthias Bolte <matthias@tinkerforge.com>
+Copyright (C) 2012-2015 Matthias Bolte <matthias@tinkerforge.com>
 Copyright (C) 2011 Olaf Lüke <olaf@tinkerforge.com>
 
 generate_python_bindings.py: Generator for Python bindings
@@ -35,7 +35,7 @@ import python_common
 class PythonBindingsDevice(python_common.PythonDevice):
     def get_python_import(self):
         include = """# -*- coding: utf-8 -*-
-{0}
+{0}{1}
 try:
     from collections import namedtuple
 except ImportError:
@@ -52,10 +52,13 @@ except ValueError:
 """
         date = datetime.datetime.now().strftime("%Y-%m-%d")
         version = common.get_changelog_version(self.get_generator().get_bindings_root_directory())
-        lower_type = self.get_category().lower()
+        released = ''
+
+        if not self.is_released():
+            released = '\n#### __DEVICE_IS_NOT_RELEASED__ ####\n'
 
         return include.format(common.gen_text_hash.format(date, *version),
-                              lower_type, self.get_underscore_name())
+                              released)
 
     def get_python_namedtuples(self):
         tup = """{0} = namedtuple('{1}', [{2}])
@@ -85,10 +88,12 @@ class {0}(Device):
     \"\"\"
 
     DEVICE_IDENTIFIER = {2}
+    DEVICE_DISPLAY_NAME = '{3}'
 
 """.format(self.get_python_class_name(),
            self.get_description(),
-           self.get_device_identifier())
+           self.get_device_identifier(),
+           self.get_long_display_name())
 
     def get_python_callback_id_definitions(self):
         cbs = ''
@@ -277,7 +282,7 @@ class PythonBindingsGenerator(common.BindingsGenerator):
         return python_common.PythonElement
 
     def generate(self, device):
-        filename = '{0}_{1}.py'.format(device.get_category().lower(), device.get_underscore_name())
+        filename = '{0}_{1}.py'.format(device.get_underscore_category(), device.get_underscore_name())
 
         py = open(os.path.join(self.get_bindings_root_directory(), 'bindings', filename), 'wb')
         py.write(device.get_python_source())

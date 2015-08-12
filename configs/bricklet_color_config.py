@@ -11,9 +11,12 @@ com = {
     'api_version': [2, 0, 0],
     'category': 'Bricklet',
     'device_identifier': 243,
-    'name': ('Color', 'color', 'Color'),
+    'name': ('Color', 'color', 'Color', 'Color Bricklet'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for measuring color (RGB value), illuminance and color temperature',
+    'description': {
+        'en': 'Measures color (RGB value), illuminance and color temperature',
+        'de': 'Misst Farbe (RGB Wert), Beleuchtungsstärke und Farbtemperatur'
+    },
     'released': True,
     'packets': []
 }
@@ -297,20 +300,22 @@ com['packets'].append({
 'doc': ['c', {
 'en':
 """
-This callback is triggered periodically with the period that is set by
-:func:`SetColorCallbackPeriod`. The :word:`parameter` is the color
+This callback is triggered when the threshold as set by
+:func:`SetColorCallbackThreshold` is reached.
+The :word:`parameter` is the color
 of the sensor as RGBC.
 
-:func:`Color` is only triggered if the color has changed since the
-last triggering.
+If the threshold keeps being reached, the callback is triggered periodically
+with the period as set by :func:`SetDebouncePeriod`.
 """,
 'de':
 """
-Dieser Callback wird mit der Periode, wie gesetzt mit :func:`SetColorCallbackPeriod`,
-ausgelöst. Der :word:`parameter` ist die Farbe des Sensors als RGBC.
+Dieser Callback wird ausgelöst wenn der Schwellwert, wie von 
+:func:`SetColorCallbackThreshold` gesetzt, erreicht wird.
+Der :word:`parameter` ist die Farbe des Sensors als RGBC.
 
-:func:`Color` wird nur ausgelöst wenn sich die Farbe seit der
-letzten Auslösung geändert hat.
+Wenn der Schwellwert erreicht bleibt, wird der Callback mit der Periode, wie
+mit :func:`SetDebouncePeriod` gesetzt, ausgelöst.
 """
 }]
 })

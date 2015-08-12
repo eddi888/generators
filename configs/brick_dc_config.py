@@ -11,9 +11,12 @@ com = {
     'api_version': [2, 0, 0],
     'category': 'Brick',
     'device_identifier': 11,
-    'name': ('DC', 'dc', 'DC'),
+    'name': ('DC', 'dc', 'DC', 'DC Brick'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for controlling DC motors',
+    'description': {
+        'en': 'Drives one brushed DC motor with up to 28V and 5A (peak)',
+        'de': 'Steuert einen Gleichstrommotor mit bis zu 28V und 5A (Peak)'
+    },
     'released': True,
     'packets': []
 }

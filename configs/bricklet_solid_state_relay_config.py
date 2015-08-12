@@ -4,16 +4,19 @@
 # with or without modification, are permitted. See the Creative
 # Commons Zero (CC0 1.0) License for more details.
 
-# Dual Relay Bricklet communication config
+# Solid State Relay Bricklet communication config
 
 com = {
     'author': 'Olaf Lüke <olaf@tinkerforge.com>',
     'api_version': [2, 0, 0],
     'category': 'Bricklet',
     'device_identifier': 244,
-    'name': ('SolidStateRelay', 'solid_state_relay', 'Solid State Relay'),
+    'name': ('SolidStateRelay', 'solid_state_relay', 'Solid State Relay', 'Solid State Relay Bricklet'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for controlling AC and DC Solid State Relays',
+    'description': {
+        'en': 'Controls AC and DC Solid State Relays',
+        'de': 'Schaltet AC und DC Halbleiterrelais (Solid State Relais)'
+    },
     'released': True,
     'packets': []
 }

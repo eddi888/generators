@@ -11,9 +11,12 @@ com = {
     'api_version': [2, 0, 0],
     'category': 'Bricklet',
     'device_identifier': 232,
-    'name': ('Moisture', 'moisture', 'Moisture'),
+    'name': ('Moisture', 'moisture', 'Moisture', 'Moisture Bricklet'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for sensing Moisture',
+    'description': {
+        'en': 'Measures soil moisture',
+        'de': 'Misst Erdfeuchtigkeit'
+    },
     'released': True,
     'packets': []
 }
@@ -286,7 +289,7 @@ com['packets'].append({
 'doc': ['af', {
 'en':
 """
-Sets the length of a `moving averaging <http://en.wikipedia.org/wiki/Moving_average>`__ 
+Sets the length of a `moving averaging <https://en.wikipedia.org/wiki/Moving_average>`__
 for the moisture value.
 
 Setting the length to 0 will turn the averaging completely off. With less
@@ -298,7 +301,8 @@ The default value is 100.
 """,
 'de':
 """
-Setzt die Länge eines gleitenden Mittelwerts für den Feuchtigkeitswert.
+Setzt die Länge eines `gleitenden Mittelwerts <https://de.wikipedia.org/wiki/Gleitender_Mittelwert>`__
+für den Feuchtigkeitswert.
 
 Wenn die Länge auf 0 gesetzt wird, ist das Averaging komplett aus. Desto kleiner
 die Länge des Mittelwerts ist, desto mehr Rauschen ist auf den Daten.

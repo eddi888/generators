@@ -7,7 +7,9 @@
 */bindings_octave/
 */doc/
 */*_package/
+device_descriptions.py
 device_identifiers.py
+device_infos.py
 csharp/tinkerforge.*.nupkg
 delphi/*.o
 delphi/*.ppu

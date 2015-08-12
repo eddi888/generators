@@ -1,5 +1,5 @@
 {
-  Copyright (C) 2012-2014 Matthias Bolte <matthias@tinkerforge.com>
+  Copyright (C) 2012-2015 Matthias Bolte <matthias@tinkerforge.com>
 
   Redistribution and use in source and binary forms of this file,
   with or without modification, are permitted. See the Creative
@@ -27,7 +27,7 @@ uses
 {$ifdef DELPHI_MACOS}
   Posix.ArpaInet, Posix.Errno, Posix.NetDB, Posix.NetinetIn, Posix.NetinetTcp, Posix.String_, Posix.SysSocket, Posix.SysTypes, Posix.Unistd,
 {$endif}
-  Classes, SyncObjs, SysUtils, LEConverter, BlockingQueue, Device, TimedSemaphore, SHA1, BrickDaemon;
+  Classes, SyncObjs, SysUtils, LEConverter, BlockingQueue, Device, TimedSemaphore, SHAone, BrickDaemon;
 
 const
   IPCON_FUNCTION_DISCONNECT_PROBE = 128;
@@ -114,10 +114,10 @@ type
   end;
 
   type TCallbackContext = record
-    queue: TBlockingQueue;
     mutex: TCriticalSection;
-    packetDispatchAllowed: boolean;
+    queue: TBlockingQueue;
     thread: TThreadWrapper;
+    packetDispatchAllowed: boolean;
   end;
 
   PCallbackContext = ^TCallbackContext;
@@ -170,6 +170,8 @@ type
     function GetLastSocketErrorNumber: longint;
     function GetLastSocketErrorMessage: string;
     procedure ReceiveLoop(thread: TThreadWrapper; opaque: pointer);
+    procedure ExitCallbackThread(callback_: PCallbackContext);
+    procedure DestroyCallbackContext(callback_: PCallbackContext);
     procedure CallbackLoop(thread: TThreadWrapper; opaque: pointer);
     procedure DisconnectProbeLoop(thread: TThreadWrapper; opaque: pointer);
     procedure HandleDisconnectByPeer(const disconnectReason: byte;
@@ -390,14 +392,14 @@ begin
   end;
 end;
 
-function HMACSHA1(const secret: TByteArray; const data: TByteArray): TSHA1Digest;
-var preparedSecret: TByteArray; sha1: TSHA1; i: longint;
-    ipad, opad: array [0..63] of byte; digest: TSHA1Digest;
+function HMACSHA1(const secret: TByteArray; const data: TByteArray): TSHAoneDigest;
+var preparedSecret: TByteArray; sha1: TSHAone; i: longint;
+    ipad, opad: array [0..63] of byte; digest: TSHAoneDigest;
 begin
   if Length(secret) > 64 then begin
-    SHA1Init(sha1);
-    SHA1Update(sha1, secret);
-    digest := SHA1Final(sha1);
+    SHAoneInit(sha1);
+    SHAoneUpdate(sha1, secret);
+    digest := SHAoneFinal(sha1);
     SetLength(preparedSecret, 64);
     Move(digest, preparedSecret, 64);
   end
@@ -412,14 +414,14 @@ begin
     ipad[i] := preparedSecret[i] xor ipad[i];
     opad[i] := preparedSecret[i] xor opad[i];
   end;
-  SHA1Init(sha1);
-  SHA1Update(sha1, ipad);
-  SHA1Update(sha1, data);
-  digest := SHA1Final(sha1);
-  SHA1Init(sha1);
-  SHA1Update(sha1, opad);
-  SHA1Update(sha1, digest);
-  result := SHA1Final(sha1);
+  SHAoneInit(sha1);
+  SHAoneUpdate(sha1, ipad);
+  SHAoneUpdate(sha1, data);
+  digest := SHAoneFinal(sha1);
+  SHAoneInit(sha1);
+  SHAoneUpdate(sha1, opad);
+  SHAoneUpdate(sha1, digest);
+  result := SHAoneFinal(sha1);
 end;
 
 { TThreadWrapper }
@@ -481,6 +483,7 @@ begin
   if (IsConnected) then begin
     Disconnect;
   end;
+  brickd.Destroy;
   authenticationMutex.Destroy;
   sequenceNumberMutex.Destroy;
   devices.Destroy;
@@ -536,21 +539,14 @@ begin
     meta[0] := IPCON_CALLBACK_DISCONNECTED;
     meta[1] := IPCON_DISCONNECT_REASON_REQUEST;
     callback_^.queue.Enqueue(IPCON_QUEUE_KIND_META, meta);
-    if (not callback_^.thread.IsCurrent) then begin
-      callback_^.queue.Enqueue(IPCON_QUEUE_KIND_EXIT, nil);
-      callback_^.thread.WaitFor;
-      callback_^.thread.Destroy;
-    end
-    else begin
-      callback_^.queue.Enqueue(IPCON_QUEUE_KIND_DESTROY_AND_EXIT, nil);
-    end;
+    ExitCallbackThread(callback_);
   end;
 end;
 
 procedure TIPConnection.Authenticate(const secret: string);
 var serverNonce, clientNonce: TArray0To3OfUInt8; i: longint;
     secretBytes, clientNonceBytes, data: TByteArray;
-    digest: TSHA1Digest;
+    digest: TSHAoneDigest;
 begin
   authenticationMutex.Acquire;
   try
@@ -632,13 +628,18 @@ begin
   waiter.Release;
 end;
 
-{ NOTE: Assumes that socketMutex is locked }
+{ NOTE: Assumes that socket is nil and socketMutex is locked }
 procedure TIPConnection.ConnectUnlocked(const isAutoReconnect: boolean);
 var
 {$ifndef FPC}
  {$ifdef MSWINDOWS}
     data: WSAData;
  {$endif}
+{$endif}
+{$ifdef DELPHI_MACOS}
+    tmp: longint;
+{$else}
+    tmp: TSocket;
 {$endif}
     nodelay: longint;
 {$ifdef DELPHI_MACOS}
@@ -678,31 +679,41 @@ begin
 {$ifndef FPC}
  {$ifdef MSWINDOWS}
   if (WSAStartup(MakeWord(2, 2), data) <> 0) then begin
+    { Destroy callback thread }
+    if (not isAutoReconnect) then begin
+      ExitCallbackThread(callback);
+      callback := nil;
+    end;
     raise Exception.Create('Could not initialize Windows Sockets 2.2: ' + GetLastSocketErrorMessage);
   end;
  {$endif}
 {$endif}
 {$ifdef FPC}
-  socket := fpsocket(AF_INET, SOCK_STREAM, 0);
-  if (socket < 0) then begin
+  tmp := fpsocket(AF_INET, SOCK_STREAM, 0);
+  if (tmp < 0) then begin
 {$else}
  {$ifdef DELPHI_MACOS}
-  socket := Posix.SysSocket.socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  tmp := Posix.SysSocket.socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
  {$else}
-  socket := WinSock.socket(AF_INET, SOCK_STREAM, 0);
+  tmp := WinSock.socket(AF_INET, SOCK_STREAM, 0);
  {$endif}
-  if (socket = INVALID_SOCKET) then begin
+  if (tmp = INVALID_SOCKET) then begin
 {$endif}
+    { Destroy callback thread }
+    if (not isAutoReconnect) then begin
+      ExitCallbackThread(callback);
+      callback := nil;
+    end;
     raise Exception.Create('Could not create socket: ' + GetLastSocketErrorMessage);
   end;
   nodelay := 1;
 {$ifdef FPC}
-  if (fpsetsockopt(socket, IPPROTO_TCP, TCP_NODELAY, @nodelay, sizeof(nodelay)) < 0) then begin
+  if (fpsetsockopt(tmp, IPPROTO_TCP, TCP_NODELAY, @nodelay, sizeof(nodelay)) < 0) then begin
 {$else}
  {$ifdef DELPHI_MACOS}
-  if (setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, nodelay, sizeof(nodelay)) < 0) then begin
+  if (setsockopt(tmp, IPPROTO_TCP, TCP_NODELAY, nodelay, sizeof(nodelay)) < 0) then begin
  {$else}
-  if (setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, @nodelay, sizeof(nodelay)) = SOCKET_ERROR) then begin
+  if (setsockopt(tmp, IPPROTO_TCP, TCP_NODELAY, @nodelay, sizeof(nodelay)) = SOCKET_ERROR) then begin
  {$endif}
 {$endif}
     raise Exception.Create('Could not set TCP_NODELAY socket option: ' + GetLastSocketErrorMessage);
@@ -714,8 +725,13 @@ begin
   hints.ai_socktype := SOCK_STREAM;
   error := getaddrinfo(PAnsiChar(AnsiString(host)), nil, hints, entry);
   if (error <> 0) then begin
-    Posix.Unistd.__close(socket);
-    socket := INVALID_SOCKET;
+    { Destroy callback thread }
+    if (not isAutoReconnect) then begin
+      ExitCallbackThread(callback);
+      callback := nil;
+    end;
+    { Destroy socket }
+    Posix.Unistd.__close(tmp);
     raise Exception.Create('Could not resolve host ' + host + ': ' + string(gai_strerror(error)));
   end;
   resolved := sockaddr_in(entry.ai_addr^).sin_addr;
@@ -723,8 +739,13 @@ begin
 {$else}
   entry := gethostbyname(PAnsiChar(AnsiString(host)));
   if (entry = nil) then begin
-    closesocket(socket);
-    socket := INVALID_SOCKET;
+    { Destroy callback thread }
+    if (not isAutoReconnect) then begin
+      ExitCallbackThread(callback);
+      callback := nil;
+    end;
+    { Destroy socket }
+    closesocket(tmp);
     raise Exception.Create('Could not resolve host: ' + host);
   end;
   resolved.s_addr := longint(pointer(entry^.h_addr_list^)^);
@@ -733,22 +754,28 @@ begin
   address.sin_port := htons(port);
   address.sin_addr := resolved;
 {$ifdef FPC}
-  if (fpconnect(socket, @address, sizeof(address)) < 0) then begin
+  if (fpconnect(tmp, @address, sizeof(address)) < 0) then begin
 {$else}
  {$ifdef DELPHI_MACOS}
-  if (Posix.SysSocket.connect(socket, sockaddr(address), sizeof(address)) < 0) then begin
+  if (Posix.SysSocket.connect(tmp, sockaddr(address), sizeof(address)) < 0) then begin
  {$else}
-  if (WinSock.connect(socket, address, sizeof(address)) = SOCKET_ERROR) then begin
+  if (WinSock.connect(tmp, address, sizeof(address)) = SOCKET_ERROR) then begin
  {$endif}
 {$endif}
+    { Destroy callback thread }
+    if (not isAutoReconnect) then begin
+      ExitCallbackThread(callback);
+      callback := nil;
+    end;
+    { Destroy socket }
 {$ifdef DELPHI_MACOS}
-    Posix.Unistd.__close(socket);
+    Posix.Unistd.__close(tmp);
 {$else}
-    closesocket(socket);
+    closesocket(tmp);
 {$endif}
-    socket := INVALID_SOCKET;
     raise Exception.Create('Could not connect socket: ' + GetLastSocketErrorMessage);
   end;
+  socket := tmp;
   socketID := socketID + 1;
   { Create disconnect probe thread }
   disconnectProbeFlag := true;
@@ -773,7 +800,7 @@ begin
   callback^.queue.Enqueue(IPCON_QUEUE_KIND_META, meta);
 end;
 
-{ NOTE: Assumes that socketMutex is locked }
+{ NOTE: Assumes that socket is not nil and socketMutex is locked }
 procedure TIPConnection.DisconnectUnlocked;
 begin
   { Destroy disconnect probe thread }
@@ -915,20 +942,42 @@ begin
   end;
 end;
 
+procedure TIPConnection.ExitCallbackThread(callback_: PCallbackContext);
+begin
+  if (not callback_^.thread.IsCurrent) then begin
+    callback_^.queue.Enqueue(IPCON_QUEUE_KIND_EXIT, nil);
+    callback_^.thread.WaitFor;
+    DestroyCallbackContext(callback_);
+  end
+  else begin
+    callback_^.queue.Enqueue(IPCON_QUEUE_KIND_DESTROY_AND_EXIT, nil);
+  end;
+end;
+
+procedure TIPConnection.DestroyCallbackContext(callback_: PCallbackContext);
+begin
+  callback_^.thread.Destroy;
+  callback_^.mutex.Destroy;
+  callback_^.queue.Destroy;
+  Dispose(callback_);
+end;
+
 procedure TIPConnection.CallbackLoop(thread: TThreadWrapper; opaque: pointer);
 var callback_: PCallbackContext; kind: byte; data: TByteArray;
 begin
   callback_ := PCallbackContext(opaque);
+  callback_^.thread := thread;
   while (true) do begin
     SetLength(data, 0);
     if (not callback_^.queue.Dequeue(kind, data, -1)) then begin
+      { FIXME: What to do here? try again? exit? }
       break;
     end;
     if (kind = IPCON_QUEUE_KIND_EXIT) then begin
       break;
     end
     else if (kind = IPCON_QUEUE_KIND_DESTROY_AND_EXIT) then begin
-      thread.Destroy;
+      DestroyCallbackContext(callback_);
       break;
     end;
     { FIXME: Cannot lock callback mutex here because this can
@@ -948,9 +997,6 @@ begin
     //  callback_.mutex.Release;
     //end;
   end;
-  callback_^.queue.Destroy;
-  callback_^.mutex.Destroy;
-  Dispose(callback_);
 end;
 
 { NOTE: The disconnect probe loop is not allowed to hold the socketMutex at any

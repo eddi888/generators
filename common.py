@@ -2,8 +2,8 @@
 
 """
 Common Generator Library
-Copyright (C) 2012-2014 Matthias Bolte <matthias@tinkerforge.com>
-Copyright (C) 2012-2013 Olaf Lüke <olaf@tinkerforge.com>
+Copyright (C) 2012-2015 Matthias Bolte <matthias@tinkerforge.com>
+Copyright (C) 2012-2015 Olaf Lüke <olaf@tinkerforge.com>
 
 common.py: Common Library for generation of bindings and documentation
 
@@ -30,9 +30,9 @@ import datetime
 import subprocess
 import sys
 import copy
+import multiprocessing.dummy
 from collections import namedtuple
 from pprint import pprint
-from PIL import Image
 
 gen_text_star = """/* ***********************************************************
  * This file was automatically generated on {0}.      *
@@ -41,7 +41,7 @@ gen_text_star = """/* **********************************************************
  *                                                           *
  * If you have a bugfix for this file and want to commit it, *
  * please fix the bug in the generator. You can find a link  *
- * to the generator git on tinkerforge.com                   *
+ * to the generators git repository on tinkerforge.com       *
  *************************************************************/
 """
 
@@ -52,7 +52,7 @@ gen_text_hash = """#############################################################
 #                                                           #
 # If you have a bugfix for this file and want to commit it, #
 # please fix the bug in the generator. You can find a link  #
-# to the generator git on tinkerforge.com                   #
+# to the generators git repository on tinkerforge.com       #
 #############################################################
 """
 
@@ -73,7 +73,7 @@ gen_text_rst = """..
  #                                                           #
  # If you have a bugfix for this file and want to commit it, #
  # please fix the bug in the generator. You can find a link  #
- # to the generator git on tinkerforge.com                   #
+ # to the generators git repository on tinkerforge.com       #
  #############################################################
 """
 
@@ -154,6 +154,11 @@ def get_changelog_version(bindings_root_directory):
 
     return last
 
+def get_image_size(path):
+    from PIL import Image
+
+    return Image.open(path).size
+
 def select_lang(d):
     if lang in d:
         return d[lang]
@@ -165,24 +170,35 @@ def select_lang(d):
 def make_rst_header(device, has_device_identifier_constant=True):
     bindings_display_name = device.get_generator().get_bindings_display_name()
     ref_name = device.get_generator().get_bindings_name()
-    category = device.get_category()
     date = datetime.datetime.now().strftime("%Y-%m-%d")
-    full_title = '{0} - {1} {2}'.format(bindings_display_name, device.get_display_name(), category)
+    full_title = '{0} - {1}'.format(bindings_display_name, device.get_long_display_name())
     full_title_underline = '='*len(full_title)
     breadcrumbs = select_lang(breadcrumbs_str).format(ref_name, full_title)
     device_identifier_constant = {'en': '.. |device_identifier_constant| replace:: There is also a :ref:`constant <{0}_{1}_{2}_constants>` for the device identifier of this {3}.\n',
                                   'de': '.. |device_identifier_constant| replace:: Es gibt auch eine :ref:`Konstante <{0}_{1}_{2}_constants>` für den Device Identifier dieses {3}.\n'}
+
+    if device.is_released():
+        orphan = ''
+    else:
+        orphan = ':orphan:'
+
     if has_device_identifier_constant:
-        device_identifier_constant = select_lang(device_identifier_constant).format(device.get_underscore_name(), category.lower(), ref_name, category)
+        device_identifier_constant = select_lang(device_identifier_constant).format(device.get_underscore_name(),
+                                                                                    device.get_underscore_category(),
+                                                                                    ref_name,
+                                                                                    device.get_camel_case_category())
     else:
         device_identifier_constant = '.. |device_identifier_constant| unicode:: 0xA0\n   :trim:\n'
-    ref = '.. _{0}_{1}_{2}:\n'.format(device.get_underscore_name(), category.lower(), ref_name)
-    return '{0}\n{1}\n{2}\n{3}\n{4}\n{5}\n'.format(gen_text_rst.format(date),
-                                                   breadcrumbs,
-                                                   device_identifier_constant,
-                                                   ref,
-                                                   full_title,
-                                                   full_title_underline)
+
+    ref = '.. _{0}_{1}_{2}:\n'.format(device.get_underscore_name(), device.get_underscore_category(), ref_name)
+
+    return '{0}\n{1}\n{2}\n{3}\n{4}\n{5}\n{6}\n'.format(gen_text_rst.format(date),
+                                                        orphan,
+                                                        breadcrumbs,
+                                                        device_identifier_constant,
+                                                        ref,
+                                                        full_title,
+                                                        full_title_underline)
 
 def make_rst_summary(device, is_programming_language=True):
     not_released = {
@@ -245,13 +261,13 @@ Bindings ist Teil deren allgemeine Beschreibung.
     }
 
     brick_name = {
-    'en': 'the :ref:`{0} Brick <{1}_brick>`',
-    'de': 'den :ref:`{0} Brick <{1}_brick>`',
+    'en': 'the :ref:`{0} <{1}_brick>`',
+    'de': 'den :ref:`{0} <{1}_brick>`',
     }
 
     bricklet_name = {
-    'en': 'the :ref:`{0} Bricklet <{1}_bricklet>`',
-    'de': 'das :ref:`{0} Bricklet <{1}_bricklet>`',
+    'en': 'the :ref:`{0} <{1}_bricklet>`',
+    'de': 'das :ref:`{0} <{1}_bricklet>`',
     }
 
     # format bindings name
@@ -264,25 +280,25 @@ Bindings ist Teil deren allgemeine Beschreibung.
                                                    device.get_generator().get_bindings_name())
 
     # format device name
-    if device.get_category() == 'Brick':
+    if device.get_camel_case_category() == 'Brick':
         device_name = select_lang(brick_name)
     else:
         device_name = select_lang(bricklet_name)
 
-    device_name = device_name.format(device.get_display_name(),
+    device_name = device_name.format(device.get_long_display_name(),
                                      device.get_underscore_name())
 
     s = select_lang(summary).format(bindings_name_link,
                                     device_name,
-                                    device.get_display_name() + ' ' + device.get_category(),
-                                    device.get_underscore_name() + '_' + device.get_category().lower())
+                                    device.get_long_display_name(),
+                                    device.get_underscore_name() + '_' + device.get_underscore_category())
 
     if is_programming_language:
         s += select_lang(summary_install).format(device.get_generator().get_bindings_name(),
                                                  device.get_generator().get_bindings_display_name())
 
     if not device.is_released():
-        if device.get_category() == 'Brick':
+        if device.get_camel_case_category() == 'Brick':
             d = brick
         else:
             d = bricklet
@@ -371,7 +387,7 @@ Der folgende Beispielcode ist `Public Domain (CC0 1.0)
         imp = imp_picture_scroll
 
     ref = '.. _{0}_{1}_{2}_examples:\n'.format(device.get_underscore_name(),
-                                               device.get_category().lower(),
+                                               device.get_underscore_category(),
                                                bindings_name)
     examples = select_lang(ex).format(ref)
     files = find_device_examples(device, filename_regex)
@@ -380,7 +396,7 @@ Der folgende Beispielcode ist `Public Domain (CC0 1.0)
 
     for f in files:
         if is_picture:
-            if Image.open(f[1]).size[0] > 950:
+            if get_image_size(f[1])[0] > 950:
                 imp = imp_picture_scroll
             else:
                 imp = imp_picture
@@ -390,10 +406,10 @@ Der folgende Beispielcode ist `Public Domain (CC0 1.0)
         else:
             language = language_from_filename(f[0])
 
-        include = '{0}_{1}_{2}_{3}'.format(device.get_camel_case_name(), device.get_category(), include_name, f[0].replace(' ', '_'))
+        include = '{0}_{1}_{2}_{3}'.format(device.get_camel_case_name(), device.get_camel_case_category(), include_name, f[0].replace(' ', '_'))
         copy_files.append((f[1], include))
         title = title_from_filename(f[0])
-        git_name = device.get_underscore_name().replace('_', '-') + '-' + device.get_category().lower()
+        git_name = device.get_dash_name() + '-' + device.get_dash_category()
         url = url_format.format(git_name, bindings_name, f[0].replace(' ', '%20'))
 
         if url_fixer is not None:
@@ -440,7 +456,7 @@ def find_examples(examples_directory, filename_regex, compare_examples=default_e
                 lines = 0
 
                 if example_path.endswith('.png'):
-                    size = Image.open(example_path).size
+                    size = get_image_size(example_path)
                     lines = size[0] * size[1]
                 else:
                     for line in open(example_path):
@@ -454,17 +470,15 @@ def find_examples(examples_directory, filename_regex, compare_examples=default_e
 
 def find_device_examples(device, filename_regex):
     bindings_name = device.get_generator().get_bindings_name()
-    root_directory = device.get_generator().get_bindings_root_directory().replace('/generators/' + bindings_name, '')
-    device_git_name = '{0}-{1}'.format(device.get_underscore_name(), device.get_category().lower()).replace('_', '-')
-    examples_directory = os.path.join(root_directory, device_git_name, 'software', 'examples', bindings_name)
+    examples_directory = os.path.join(device.get_git_directory(), 'software', 'examples', bindings_name)
 
     return find_examples(examples_directory, filename_regex, device.get_generator().compare_examples)
 
 def copy_examples(copy_files, path):
-    doc_path = '{0}/doc/{1}'.format(path, lang)
+    doc_path = os.path.join(path, 'doc', lang)
     print('  * Copying examples:')
     for copy_file in copy_files:
-        doc_dest = '{0}/{1}'.format(doc_path, copy_file[1])
+        doc_dest = os.path.join(doc_path, copy_file[1])
         doc_src = copy_file[0]
         shutil.copy(doc_src, doc_dest)
         print('   - {0}'.format(copy_file[1]))
@@ -496,12 +510,12 @@ def format_since_firmware(device, packet):
     since = packet.get_since_firmware()
 
     if since is not None and since > [2, 0, 0]:
-        if device.get_category() == 'Brick':
+        if device.get_camel_case_category() == 'Brick':
             suffix = 'Firmware'
         else:
             suffix = 'Plugin'
 
-        return '\n.. versionadded:: {1}.{2}.{3}~({0})\n'.format(suffix, *since)
+        return '\n.. versionadded:: {1}.{2}.{3}$nbsp;({0})\n'.format(suffix, *since)
     else:
         return ''
 
@@ -512,17 +526,20 @@ def default_constant_format(prefix, constant_group, constant_item, value):
 def format_constants(prefix, packet,
                      constants_name={'en': 'constants', 'de': 'Konstanten'},
                      char_format="'{0}'",
-                     constant_format_func=default_constant_format):
-    constants_intro = {
-'en': """
+                     constant_format_func=default_constant_format,
+                     constants_intro=None):
+    if constants_intro == None:
+        constants_intro = {
+        'en': """
 The following {0} are available for this function:
 
 """,
-'de': """
+        'de': """
 Die folgenden {0} sind für diese Funktion verfügbar:
 
 """
-}
+        }
+
     constants = []
 
     for constant_group in packet.get_constant_groups():
@@ -604,7 +621,6 @@ def underscore_to_space(name):
     return ' '.join(ret)
 
 def recreate_directory(directory):
-    directory = os.path.join(directory)
     if os.path.exists(directory):
         shutil.rmtree(directory)
     os.makedirs(directory)
@@ -612,14 +628,23 @@ def recreate_directory(directory):
 def specialize_template(template_filename, destination_filename, replacements):
     template_file = open(template_filename, 'rb')
     lines = []
+    replaced = set()
 
     for line in template_file.readlines():
         for key in replacements:
-            line = line.replace(key, replacements[key])
+            replaced_line = line.replace(key, replacements[key])
+
+            if replaced_line != line:
+                replaced.add(key)
+
+            line = replaced_line
 
         lines.append(line)
 
     template_file.close()
+
+    if replaced != set(replacements.keys()):
+        raise Exception('Not all replacements for {0} have been applied'.format(template_filename))
 
     destination_file = open(destination_filename, 'wb')
     destination_file.writelines(lines)
@@ -642,7 +667,8 @@ def generate(bindings_root_directory, language, generator_class):
     common_brick_packets = copy.deepcopy(__import__('brick_commonconfig').common_packets)
     common_bricklet_packets = copy.deepcopy(__import__('bricklet_commonconfig').common_packets)
 
-    device_identifiers = []
+    brick_infos = []
+    bricklet_infos = []
 
     generator = generator_class(bindings_root_directory, language)
 
@@ -654,7 +680,7 @@ def generate(bindings_root_directory, language, generator_class):
             if com['released']:
                 print(' * {0}'.format(config[:-10]))
             else:
-                print(' * {0} (not released)'.format(config[:-10]))
+                print(' * {0} \033[01;36m(not released)\033[0m'.format(config[:-10]))
 
             def prepare_common_packets(common_packets):
                 for common_packet in common_packets:
@@ -685,20 +711,93 @@ def generate(bindings_root_directory, language, generator_class):
 
             device = generator.get_device_class()(com, generator)
 
-            device_identifiers.append((device.get_device_identifier(), device.get_category() + ' ' + device.get_display_name()))
+            if device.get_camel_case_category() == 'Brick':
+                ref_name = device.get_underscore_name() + '_brick'
+                hardware_doc_name = device.get_short_display_name().replace(' ', '_').replace('/', '_').replace('-', '').replace('2.0', 'V2') + '_Brick'
+                software_doc_prefix = device.get_camel_case_name() + '_Brick'
+                git_name = device.get_dash_name() + '-brick'
+
+                if device.get_device_identifier() != 17:
+                    firmware_url_part = device.get_underscore_name()
+                else:
+                    firmware_url_part = None
+
+                device_info = (device.get_device_identifier(),
+                               device.get_long_display_name(),
+                               device.get_short_display_name(),
+                               ref_name,
+                               hardware_doc_name,
+                               software_doc_prefix,
+                               git_name,
+                               firmware_url_part,
+                               device.is_released(),
+                               True,
+                               {
+                                   'en': device.get_description('en'),
+                                   'de': device.get_description('de')
+                               })
+
+                brick_infos.append(device_info)
+            else:
+                ref_name = device.get_underscore_name() + '_bricklet'
+                hardware_doc_name = device.get_short_display_name().replace(' ', '_').replace('/', '_').replace('-', '').replace('2.0', 'V2')
+                software_doc_prefix = device.get_camel_case_name() + '_Bricklet'
+                git_name = device.get_dash_name() + '-bricklet'
+                firmware_url_part = device.get_underscore_name()
+
+                device_info = (device.get_device_identifier(),
+                               device.get_long_display_name(),
+                               device.get_short_display_name(),
+                               ref_name,
+                               hardware_doc_name,
+                               software_doc_prefix,
+                               git_name,
+                               firmware_url_part,
+                               device.is_released(),
+                               True,
+                               {
+                                   'en': device.get_description('en'),
+                                   'de': device.get_description('de')
+                               })
+
+                bricklet_infos.append(device_info)
 
             generator.generate(device)
 
     generator.finish()
 
-    f = open(os.path.join(bindings_root_directory, '..', 'device_identifiers.py'), 'wb')
-    f.write('device_identifiers = ')
-    pprint(sorted(device_identifiers),  f)
-    f.close()
+    brick_infos.append((None, 'Debug Brick', 'Debug', 'debug_brick', 'Debug_Brick', None, 'debug-brick', None, True, False,
+                        {'en': 'For Firmware Developers: JTAG and serial console',
+                         'de': 'Für Firmware Entwickler: JTAG und serielle Konsole'}))
+
+    bricklet_infos.append((None, 'Breakout Bricklet', 'Breakout', 'breakout_bricklet', 'Breakout', None, 'breakout-bricklet', None, True, False,
+                           {'en': 'Makes all Bricklet signals available',
+                            'de': 'Macht alle Bricklet Signale zugänglich'}))
+
+    with open(os.path.join(bindings_root_directory, '..', 'device_infos.py'), 'wb') as f:
+        f.write('from collections import namedtuple\n')
+        f.write('\n')
+        f.write("DeviceInfo = namedtuple('DeviceInfo', 'identifier long_display_name short_display_name ref_name hardware_doc_name software_doc_prefix git_name firmware_url_part is_released has_bindings description')\n")
+        f.write('\n')
+        f.write('brick_infos = \\\n')
+        f.write('[\n')
+
+        for brick_info in sorted(brick_infos):
+            f.write('    DeviceInfo{0},\n'.format(brick_info))
+
+        f.write(']\n')
+        f.write('\n')
+        f.write('bricklet_infos = \\\n')
+        f.write('[\n')
+
+        for bricklet_info in sorted(bricklet_infos):
+            f.write('    DeviceInfo{0},\n'.format(bricklet_info))
+
+        f.write(']\n')
 
 cn_valid_camel_case_chars = re.compile('^[A-Z][A-Za-z0-9]*$')
 cn_valid_underscore_chars = re.compile('^[a-z][a-z0-9_]*$')
-cn_valid_display_chars = re.compile('^[A-Z][A-Za-z0-9/ -]*$')
+cn_valid_display_chars = re.compile('^[A-Z][A-Za-z0-9/ -.]*$')
 cn_valid_constant_camel_case_chars = re.compile('^[A-Za-z0-9]+$')
 cn_valid_constant_underscore_chars = re.compile('^[a-z0-9_]+$')
 
@@ -707,42 +806,63 @@ cn_all_uppercase = ['api', 'ir', 'us', 'lcd', 'dc', 'imu', 'pwm', 'gps', 'id', '
                     '2d', '3d', '1k', '100k', '500k', '3v', '6v', '10v', '36v',
                     '45v', 'sps', 'oqpsk', 'bpsk40', 'dhcp', 'ip', 'wpa',
                     'wpa2', 'ca', 'wep', 'rgb', 'nfc', 'rfid', 'fifo',
-                    'ws2801', 'ws2811', 'ws2812']
+                    'ws2801', 'ws2811', 'ws2812', 'adc', 'rs232', 'ac', 'oled',
+                    '125dps', '250dps', '500dps', '1000dps', '2000dps', 'co2',]
 
 cn_eap_suffix = ['fast', 'tls', 'ttls', 'peap', 'mschap', 'gtc']
 
-cn_special_camel_case = {'mhz':   'MHz',
-                         '20ma':  '20mA',
-                         '50hz':  '50Hz',
-                         '60hz':  '60Hz',
-                         '1to11': '1To11',
-                         '1to13': '1To13',
-                         '1to14': '1To14'}
+cn_special_camel_case = {'mhz':      'MHz',
+                         '20ma':     '20mA',
+                         '24ma':     '24mA',
+                         '5v':       '5V',
+                         '10v':      '10V',
+                         '64000lux': '64000Lux',
+                         '32000lux': '32000Lux',
+                         '16000lux': '16000Lux',
+                         '8000lux':  '8000Lux',
+                         '1300lux':  '1300Lux',
+                         '600lux':   '600Lux',
+                         '3hz':      '3Hz',
+                         '6hz':      '6Hz',
+                         '10hz':     '10Hz',
+                         '12hz':     '12Hz',
+                         '25hz':     '25Hz',
+                         '50hz':     '50Hz',
+                         '60hz':     '60Hz',
+                         '80hz':     '80Hz',
+                         '100hz':    '100Hz',
+                         '200hz':    '200Hz',
+                         '400hz':    '400Hz',
+                         '800hz':    '800Hz',
+                         '1600hz':   '1600Hz',
+                         '1to11':    '1To11',
+                         '1to13':    '1To13',
+                         '1to14':    '1To14'}
 
-def check_name(camel_case, underscore, display, is_constant=False):
-    if camel_case is not None:
+def check_name(camel_case, underscore, short_display=None, long_display=None, is_constant=False, device_category=None):
+    if camel_case != None:
         if is_constant:
             r = cn_valid_constant_camel_case_chars
         else:
             r = cn_valid_camel_case_chars
 
-        if r.match(camel_case) is None:
+        if r.match(camel_case) == None:
             raise ValueError("camel case name '{0}' contains invalid chars".format(camel_case))
 
-    if underscore is not None:
+    if underscore != None:
         if is_constant:
             r = cn_valid_constant_underscore_chars
         else:
             r = cn_valid_underscore_chars
 
-        if r.match(underscore) is None:
+        if r.match(underscore) == None:
             raise ValueError("underscore name '{0}' contains invalid chars".format(underscore))
 
-    if display is not None:
-        if cn_valid_display_chars.match(display) is None:
-            raise ValueError("display name '{0}' contains invalid chars".format(display))
+    if short_display != None:
+        if cn_valid_display_chars.match(short_display) == None:
+            raise ValueError("short display name '{0}' contains invalid chars".format(short_display))
 
-    if camel_case is not None and underscore is not None:
+    if camel_case != None and underscore != None:
         # test 1
         camel_case_to_check = camel_case.lower()
         underscore_to_check = underscore.replace('_', '')
@@ -769,18 +889,27 @@ def check_name(camel_case, underscore, display, is_constant=False):
             raise ValueError("camel case name '{0}' and underscore name '{1}' ({2}) mismatch (test 2)" \
                              .format(camel_case, underscore, underscore_to_check))
 
-    if camel_case is not None and display is not None:
+    if camel_case != None and short_display != None:
         # test 1
-        display_to_check = display.replace(' ', '').replace('-', '').replace('/', '')
+        short_display_to_check = short_display.replace(' ', '').replace('-', '').replace('/', '')
 
-        if camel_case != display_to_check:
-            raise ValueError("camel case name '{0}' and display name '{1}' ({2}) mismatch (test 1)" \
-                             .format(camel_case, display, display_to_check))
+        if short_display_to_check.endswith('2.0'):
+            short_display_to_check = short_display_to_check.replace('2.0', 'V2')
+
+        if camel_case != short_display_to_check:
+            raise ValueError("camel case name '{0}' and short display name '{1}' ({2}) mismatch (test 1)" \
+                             .format(camel_case, short_display, short_display_to_check))
 
         # test 2
         camel_case_to_check = camel_case_to_space(camel_case)
 
-        if camel_case in ['IO4', 'IO16']:
+        if camel_case == 'IMUV2':
+            camel_case_to_check = camel_case_to_check.replace('V 2', ' 2.0')
+        elif camel_case_to_check.endswith('CO 2'):
+            camel_case_to_check = camel_case_to_check.replace('CO 2', 'CO2')
+        elif camel_case.endswith('V2'):
+            camel_case_to_check = camel_case_to_check.replace('V2', '2.0')
+        elif camel_case in ['IO4', 'IO16']:
             camel_case_to_check = camel_case_to_check.replace(' ', '-')
         elif camel_case in ['Current12', 'Current25']:
             camel_case_to_check = camel_case_to_check.replace(' ', '')
@@ -790,32 +919,64 @@ def check_name(camel_case, underscore, display, is_constant=False):
             camel_case_to_check = camel_case_to_check.replace('16x 2', '16x2')
         elif camel_case.endswith('20x4'):
             camel_case_to_check = camel_case_to_check.replace('20x 4', '20x4')
+        elif camel_case.endswith('128x64'):
+            camel_case_to_check = camel_case_to_check.replace('128x 64', '128x64')
+        elif camel_case.endswith('64x48'):
+            camel_case_to_check = camel_case_to_check.replace('64x 48', '64x48')
         elif camel_case.endswith('4x7'):
             camel_case_to_check = camel_case_to_check.replace('4x 7', '4x7')
         elif camel_case.endswith('020mA'):
             camel_case_to_check = camel_case_to_check.replace('020m A', '0-20mA')
+        elif camel_case.endswith('RS232'):
+            camel_case_to_check = camel_case_to_check.replace('RS 232', 'RS232')
         elif camel_case == 'NFCRFID':
             camel_case_to_check = camel_case_to_check.replace('NFCRFID', 'NFC/RFID')
 
-        if camel_case_to_check != display:
-            raise ValueError("camel case name '{0}' ({1}) and display name '{2}' mismatch (test 2)" \
-                             .format(camel_case, camel_case_to_check, display))
+        if camel_case_to_check != short_display:
+            raise ValueError("camel case name '{0}' ({1}) and short display name '{2}' mismatch (test 2)" \
+                             .format(camel_case, camel_case_to_check, short_display))
 
-    if underscore is not None and display is not None:
-        display_to_check = display.replace(' ', '_').replace('/', '_')
+    if underscore != None and short_display != None:
+        short_display_to_check = short_display.replace(' ', '_').replace('/', '_')
 
-        if display in ['IO-4', 'IO-16']:
-            display_to_check = display_to_check.replace('-', '')
+        if short_display.endswith('2.0'):
+            short_display_to_check = short_display_to_check.replace('2.0', 'V2')
+        elif short_display in ['IO-4', 'IO-16']:
+            short_display_to_check = short_display_to_check.replace('-', '')
         else:
-            display_to_check = display_to_check.replace('-', '_')
+            short_display_to_check = short_display_to_check.replace('-', '_')
 
-        display_to_check = display_to_check.lower()
+        short_display_to_check = short_display_to_check.lower()
 
-        if underscore != display_to_check.lower():
-            raise ValueError("underscore name '{0}' and display name '{1}' ({2}) mismatch" \
-                             .format(underscore, display, display_to_check))
+        if underscore != short_display_to_check.lower():
+            raise ValueError("underscore name '{0}' and short display name '{1}' ({2}) mismatch" \
+                             .format(underscore, short_display, short_display_to_check))
 
-class ConstantItem:
+    if short_display != None and long_display != None and device_category != None:
+        short_display_to_check = set(short_display.split(' ') + [device_category])
+        long_display_to_check = set(long_display.split(' '))
+
+        if short_display_to_check != long_display_to_check:
+            raise ValueError("long display name '{0}' and short display name '{1}' + '{2}' ({3}) do not contain the same words" \
+                             .format(long_display, short_display, device_category, ' '.join(list(short_display_to_check))))
+
+class NameMixin:
+    def get_camel_case_name(self):
+        raise NotImplementedError()
+
+    def get_underscore_name(self):
+        raise NotImplementedError()
+
+    def get_headless_camel_case_name(self):
+        return make_headless_camel_case(self.get_camel_case_name(), self.get_underscore_name())
+
+    def get_upper_case_name(self):
+        return self.get_underscore_name().upper()
+
+    def get_dash_name(self):
+        return self.get_underscore_name().replace('_', '-')
+
+class ConstantItem(NameMixin):
     def __init__(self, raw_data):
         self.raw_data = raw_data
 
@@ -825,24 +986,18 @@ class ConstantItem:
     def get_underscore_name(self):
         return self.raw_data[1]
 
-    def get_upper_case_name(self):
-        return self.get_underscore_name().upper()
-
-    def get_dash_name(self):
-        return self.get_underscore_name().replace('_', '-')
-
     def get_value(self):
         return self.raw_data[2]
 
-class ConstantGroup:
+class ConstantGroup(NameMixin):
     def __init__(self, element, type, raw_data, generator):
         self.type = type
         self.raw_data = raw_data
         self.elements = [element]
         self.items = []
 
-        for item_raw_data in raw_data[2]:
-            self.items.append(generator.get_constant_item_class()(item_raw_data))
+        for raw_item in raw_data[2]:
+            self.items.append(generator.get_constant_item_class()(raw_item))
 
     def add_elements(self, elements):
         self.elements += elements
@@ -852,12 +1007,6 @@ class ConstantGroup:
 
     def get_underscore_name(self):
         return self.raw_data[1]
-
-    def get_upper_case_name(self):
-        return self.get_underscore_name().upper()
-
-    def get_dash_name(self):
-        return self.get_underscore_name().replace('_', '-')
 
     def get_type(self):
         return self.type
@@ -869,9 +1018,10 @@ class ConstantGroup:
         return self.elements
 
 class Element:
-    def __init__(self, packet, raw_data, generator):
-        self.packet = packet
+    def __init__(self, raw_data, packet, device, generator):
         self.raw_data = raw_data
+        self.packet = packet
+        self.device = device
         self.generator = generator
         self.constant_group = None
 
@@ -880,6 +1030,12 @@ class Element:
 
     def get_packet(self):
         return self.packet
+
+    def get_device(self):
+        return self.device
+
+    def get_generator(self):
+        return self.generator
 
     def get_underscore_name(self):
         return self.raw_data[0]
@@ -923,7 +1079,7 @@ class Element:
     def get_size(self):
         return self.get_item_size() * self.get_cardinality()
 
-class Packet:
+class Packet(NameMixin):
     valid_types = set(['int8',
                        'uint8',
                        'int16',
@@ -937,22 +1093,22 @@ class Packet:
                        'char',
                        'string'])
 
-    def __init__(self, device, raw_data, generator):
+    def __init__(self, raw_data, device, generator):
+        self.raw_data = raw_data
         self.device = device
         self.generator = generator
-        self.raw_data = raw_data
         self.all_elements = []
         self.in_elements = []
         self.out_elements = []
 
-        check_name(raw_data['name'][0], raw_data['name'][1], None)
+        check_name(raw_data['name'][0], raw_data['name'][1])
 
         for raw_element in self.raw_data['elements']:
-            element = generator.get_element_class()(self, raw_element, generator)
+            element = generator.get_element_class()(raw_element, self, device, generator)
 
             self.all_elements.append(element)
 
-            check_name(None, element.get_underscore_name(), None)
+            check_name(None, element.get_underscore_name())
 
             if element.get_type() not in Packet.valid_types:
                 raise ValueError('Invalid element type ' + element.get_type())
@@ -970,10 +1126,10 @@ class Packet:
             constant_group = element.get_constant_group()
 
             if constant_group is not None:
-                check_name(constant_group.get_camel_case_name(), constant_group.get_underscore_name(), None)
+                check_name(constant_group.get_camel_case_name(), constant_group.get_underscore_name())
 
                 for constant_item in constant_group.get_items():
-                    check_name(constant_item.get_camel_case_name(), constant_item.get_underscore_name(), None, True)
+                    check_name(constant_item.get_camel_case_name(), constant_item.get_underscore_name(), is_constant=True)
 
         self.constant_groups = []
 
@@ -1015,23 +1171,17 @@ class Packet:
     def get_device(self):
         return self.device
 
+    def get_generator(self):
+        return self.generator
+
     def get_type(self):
         return self.raw_data['type']
 
     def get_camel_case_name(self):
         return self.raw_data['name'][0]
 
-    def get_headless_camel_case_name(self):
-        return make_headless_camel_case(self.get_camel_case_name(), self.get_underscore_name())
-
     def get_underscore_name(self):
         return self.raw_data['name'][1]
-
-    def get_upper_case_name(self):
-        return self.get_underscore_name().upper()
-
-    def get_dash_name(self):
-        return self.get_underscore_name().replace('_', '-')
 
     def get_elements(self, direction=None):
         if direction is None:
@@ -1061,7 +1211,7 @@ class Packet:
             subsitutions = doc[2]['*']
 
         filtered_subsitutions = {}
-        bindings_name = self.get_device().get_generator().get_bindings_name()
+        bindings_name = self.get_generator().get_bindings_name()
 
         for key, value in subsitutions.items():
             if bindings_name in value:
@@ -1118,7 +1268,7 @@ class Packet:
                 return True
         return False
 
-class Device:
+class Device(NameMixin):
     def __init__(self, raw_data, generator):
         self.raw_data = raw_data
         self.generator = generator
@@ -1128,13 +1278,13 @@ class Device:
         self.all_function_packets_without_doc_only = []
         self.callback_packets = []
 
-        check_name(raw_data['name'][0], raw_data['name'][1], raw_data['name'][2])
+        check_name(raw_data['name'][0], raw_data['name'][1], raw_data['name'][2], raw_data['name'][3], device_category=raw_data['category'])
 
-        for i, p in zip(range(len(raw_data['packets'])), raw_data['packets']):
-            if not 'function_id' in p:
-                p['function_id'] = i + 1
+        for i, raw_packet in zip(range(len(raw_data['packets'])), raw_data['packets']):
+            if not 'function_id' in raw_packet:
+                raw_packet['function_id'] = i + 1
 
-            packet = generator.get_packet_class()(self, p, generator)
+            packet = generator.get_packet_class()(raw_packet, self, generator)
 
             self.all_packets.append(packet)
 
@@ -1177,10 +1327,9 @@ class Device:
                             raise ValueError('Constant item value ({0} != {1}) mismatch in constant group {2}'.format(a, b, constant_group.get_underscore_name()))
 
                     constant_group = None
-
                     break
 
-                if constant_group is not None:
+                if constant_group != None:
                     self.constant_groups.append(constant_group)
 
     def get_generator(self):
@@ -1198,8 +1347,17 @@ class Device:
         else:
             return ''
 
-    def get_category(self):
+    def get_camel_case_category(self):
         return self.raw_data['category']
+
+    def get_underscore_category(self):
+        return self.raw_data['category'].lower()
+
+    def get_upper_case_category(self):
+        return self.get_underscore_category().upper()
+
+    def get_dash_category(self):
+        return self.get_underscore_category().replace('_', '-')
 
     def get_device_identifier(self):
         return self.raw_data['device_identifier']
@@ -1207,36 +1365,24 @@ class Device:
     def get_camel_case_name(self):
         return self.raw_data['name'][0]
 
-    def get_headless_camel_case_name(self):
-        return make_headless_camel_case(self.get_camel_case_name(), self.get_underscore_name())
-
     def get_underscore_name(self):
         return self.raw_data['name'][1]
 
-    def get_upper_case_name(self):
-        return self.get_underscore_name().upper()
-
-    def get_dash_name(self):
-        return self.get_underscore_name().replace('_', '-')
-
-    def get_display_name(self):
+    def get_short_display_name(self):
         return self.raw_data['name'][2]
 
-    def get_description(self):
-        return self.raw_data['description']
+    def get_long_display_name(self):
+        return self.raw_data['name'][3]
 
-    def get_doc_rst_path(self):
-        if not self.get_generator().is_doc():
-            raise Exception("Invalid call in non-doc generator")
+    def get_description(self, language='en'):
+        return self.raw_data['description'][language]
 
-        filename = '{0}_{1}_{2}.rst'.format(self.get_camel_case_name(),
-                                            self.get_category(),
-                                            self.get_generator().get_doc_rst_filename_part())
+    def get_git_directory(self):
+        global_root_directory = os.path.normpath(os.path.join(self.get_generator().get_bindings_root_directory(), '..', '..'))
+        git_name = self.get_dash_name() + '-' + self.get_dash_category()
+        git_directory = os.path.join(global_root_directory, git_name)
 
-        return os.path.join(self.get_generator().get_bindings_root_directory(),
-                            'doc',
-                            self.get_generator().get_language(),
-                            filename)
+        return git_directory
 
     def get_packets(self, type=None):
         if type is None:
@@ -1278,6 +1424,25 @@ class Device:
                                                         **extra_value))
 
         return ''.join(constants)
+
+    def get_doc_rst_path(self):
+        if not self.get_generator().is_doc():
+            raise Exception("Invalid call in non-doc generator")
+
+        filename = '{0}_{1}_{2}.rst'.format(self.get_camel_case_name(),
+                                            self.get_camel_case_category(),
+                                            self.get_generator().get_doc_rst_filename_part())
+
+        return os.path.join(self.get_generator().get_bindings_root_directory(),
+                            'doc',
+                            self.get_generator().get_language(),
+                            filename)
+
+    def get_doc_rst_ref_name(self):
+        if not self.get_generator().is_doc():
+            raise Exception("Invalid call in non-doc generator")
+
+        return self.get_underscore_name() + '_' + self.get_underscore_category()
 
 class Generator:
     def __init__(self, bindings_root_directory, language):
@@ -1343,13 +1508,9 @@ class DocGenerator(Generator):
         return True
 
     def prepare(self):
-        Generator.prepare(self)
-
         recreate_directory(os.path.join(self.get_bindings_root_directory(), 'doc', self.get_language()))
 
     def finish(self):
-        Generator.finish(self)
-
         # Copy IPConnection examples
         example_regex = self.get_doc_example_regex()
 
@@ -1367,7 +1528,6 @@ class DocGenerator(Generator):
 
 class BindingsGenerator(Generator):
     released_files_name_prefix = None
-    recreate_bindings_subdirectory = True
     bindings_subdirectory_name = 'bindings'
     check_directory_name = True
 
@@ -1382,8 +1542,7 @@ class BindingsGenerator(Generator):
         self.released_files = []
 
     def prepare(self):
-        if self.recreate_bindings_subdirectory:
-            recreate_directory(os.path.join(self.get_bindings_root_directory(), self.bindings_subdirectory_name))
+        recreate_directory(os.path.join(self.get_bindings_root_directory(), self.bindings_subdirectory_name))
 
     def finish(self):
         if self.released_files_name_prefix is None:
@@ -1394,7 +1553,17 @@ class BindingsGenerator(Generator):
             py.write('released_files = ' + repr(self.released_files))
             py.close()
 
+def examples_tester_worker(cookie, args, env):
+    try:
+        output = subprocess.check_output(args, env=env, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        return cookie, e.output, e.returncode == 0
+
+    return cookie, output, True
+
 class ExamplesTester:
+    PROCESSES = 4
+
     def __init__(self, name, extension, path, subdirs=['examples'], comment=None, extra_examples=[]):
         version = get_changelog_version(path)
 
@@ -1406,7 +1575,9 @@ class ExamplesTester:
         self.extra_examples = extra_examples[:]
         self.zipname = 'tinkerforge_{0}_bindings_{1}_{2}_{3}.zip'.format(name, *version)
         self.test_count = 0
+        self.success_count = 0
         self.failure_count = 0
+        self.pool = multiprocessing.dummy.Pool(processes=self.PROCESSES)
 
     def walker(self, arg, dirname, names):
         for name in names:
@@ -1415,22 +1586,38 @@ class ExamplesTester:
 
             self.handle_source(os.path.join(dirname, name), False)
 
+    def execute(self, cookie, args, env=None):
+        def callback(result):
+            self.handle_result(*result)
+
+        self.pool.apply_async(examples_tester_worker, args=(cookie, args, env),
+                              callback=callback)
+
     def handle_source(self, src, is_extra_example):
         self.test_count += 1
+        self.test((src,), src, is_extra_example)
 
-        if self.comment is not None:
+    def handle_result(self, cookie, output, success):
+        src = cookie[0]
+
+        if self.comment != None:
             print('>>> [{0}] testing {1}'.format(self.comment, src))
         else:
             print('>>> testing {0}'.format(src))
 
-        if not self.test(src, is_extra_example):
-            self.failure_count += 1
+        output = output.strip()
 
-            print('\033[01;31m>>> test failed\033[0m\n')
-        else:
+        if len(output) > 0:
+            print(output)
+
+        if success:
+            self.success_count += 1
             print('\033[01;32m>>> test succeded\033[0m\n')
+        else:
+            self.failure_count += 1
+            print('\033[01;31m>>> test failed\033[0m\n')
 
-    def test(self, src, is_extra_example):
+    def test(self, cookie, src, is_extra_example):
         raise NotImplementedError()
 
     def run(self):
@@ -1467,11 +1654,16 @@ class ExamplesTester:
             for extra_example in self.extra_examples:
                 self.handle_source(extra_example, True)
 
-            # report
-            if self.comment is not None:
-                print('### [{0}] {1} files tested, {2} failure(s) occurred'.format(self.comment, self.test_count, self.failure_count))
-            else:
-                print('### {0} files tested, {1} failure(s) occurred'.format(self.test_count, self.failure_count))
+        self.pool.close()
+        self.pool.join()
+
+        # report
+        if self.comment != None:
+            print('### [{0}] {1} file(s) tested, {2} test(s) succeded, {3} failure(s) occurred'
+                  .format(self.comment, self.test_count, self.success_count, self.failure_count))
+        else:
+            print('### {0} file(s) tested, {1} test(s) succeded, {2} failure(s) occurred'
+                  .format(self.test_count, self.success_count, self.failure_count))
 
         return self.failure_count == 0
 

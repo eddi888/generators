@@ -4,16 +4,19 @@
 # with or without modification, are permitted. See the Creative
 # Commons Zero (CC0 1.0) License for more details.
 
-# Linear Poti Bricklet communication config
+# Voltage Bricklet communication config
 
 com = {
     'author': 'Olaf Lüke <olaf@tinkerforge.com>',
     'api_version': [2, 0, 0],
     'category': 'Bricklet',
     'device_identifier': 218,
-    'name': ('Voltage', 'voltage', 'Voltage'),
+    'name': ('Voltage', 'voltage', 'Voltage', 'Voltage Bricklet'),
     'manufacturer': 'Tinkerforge',
-    'description': 'Device for sensing Voltages between 0 and 50V',
+    'description': {
+        'en': 'Measures DC voltage between 0V and 50V',
+        'de': 'Misst Gleichspannung zwischen 0V und 50V'
+    },
     'released': True,
     'packets': []
 }
