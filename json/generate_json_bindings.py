@@ -39,7 +39,9 @@ class JsonDevice(common.Device):
         return self.raw_data
 
     def get_json_name(self):
-        return self.raw_data['category'].lower()+"_"+self.raw_data['name'][1]+"_config"
+        filename = self.raw_data['name'][0].lower()
+        filename = filename .replace("/", "_").replace(" ", "_").replace("-", "").replace("2.0", "v2")
+        return (self.raw_data['category'].lower()+"_"+filename+"_config")
 
         
 class JsonBindingsGenerator(common.BindingsGenerator):
